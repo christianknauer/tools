@@ -3,7 +3,7 @@
 Personal tools
 
 public checkout:
-`git clone https://github.com/christianknauer/tools.git`
+`git clone --recurse-submodules https://github.com/christianknauer/tools.git`
 
 private checkout
-`git clone git@github.com:christianknauer/tools.git`
+`git clone --recurse-submodules git@github.com:christianknauer/tools.git`
