@@ -4,12 +4,12 @@
 
 source lib.inc.sh
 
-export LOGGING_LEVEL_DEBUG=0
-export LOGGING_LEVEL_SCOPE="show_droplets"
+LOGGING_LEVEL=3
+LOGGING_MODULES="show_droplets"
 
 source token.inc.sh
 
-Begin show_droplets.sh
+LoggingModuleName show_droplets
 
 InfoMsg "show_droplets"
 
