@@ -13,7 +13,7 @@ source token.inc.sh
 
 InfoMsg "show_droplets"
 
-DebugLoggingConfig 2
+#DebugLoggingConfig 2
 
 DROPLETS=$(curl -sS -X GET "https://api.digitalocean.com/v2/droplets" \
 	-H "Authorization: Bearer $DO_TOKEN")
