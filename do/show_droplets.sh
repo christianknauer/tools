@@ -7,13 +7,13 @@ source lib.inc.sh
 
 LOGGING_NAMESPACE="."
 source ${LIB_DIRECTORY}/logging.inc.sh
-LOGGING_DEBUG_LEVEL=3
+#LOGGING_DEBUG_LEVEL=3
+ParseLoggingOptions ${@}
+DebugLoggingConfig 2
 
 source token.inc.sh
 
 InfoMsg "show_droplets"
-
-#DebugLoggingConfig 2
 
 DROPLETS=$(curl -sS -X GET "https://api.digitalocean.com/v2/droplets" \
 	-H "Authorization: Bearer $DO_TOKEN")
