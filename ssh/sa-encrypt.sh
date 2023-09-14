@@ -4,67 +4,38 @@
 
 # encrypt files with ssh agent
 
-# initialize library
-source lib.inc.sh
-[ -z "$LIB_DIRECTORY" ] && echo "ERROR: LIB_DIRECTORY not defined, terminating." && exit 1
+# initialize 
 
-# load logging module (use global namespace)
-LOGGING_NAMESPACE="."; source ${LIB_DIRECTORY}/logging.inc.sh
-# load options module (use default namespace "Options.")
-source ${LIB_DIRECTORY}/options.inc.sh
+script_path_in_package=$(readlink -f -- "$0")
+script_directory=${script_path_in_package%/*}
+source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
-
 USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -d LOGGING_DEBUG_LEVEL ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
 
 # check binaries
-ARCH=$(uname -m)
-CODE_DIR="$(dirname $0)/exec/${ARCH}"
-ENCRYPT="${CODE_DIR}/sshcrypt-agent-encrypt"
-DECRYPT="${CODE_DIR}/sshcrypt-agent-decrypt"
-[ ! -e "$ENCRYPT" ] && ErrorMsg "exec file \"${ENCRYPT}\" does not exist" && exit 1
-[ ! -e "$DECRYPT" ] && ErrorMsg "exec file \"${DECRYPT}\" does not exist" && exit 1
-DebugMsg 3 "using exec files \"${ENCRYPT}\", \"${DECRYPT}\""
+sacrypt_CheckBinaries
+
+# create temporary directory
+sacrypt_CreateTempDir
 
 # main
 
-# un-comment to see what's going on when you run the script
-#set -x 
-
-# create safe working directory
-HOMED=$(pwd)
-
-# create temporary directory and store its name in a variable.
-TEMPD=$(mktemp -d)
-
-# check if the temp directory was created successfully.
-[ ! -e "$TEMPD" ] && ErrorMsg "failed to create temporary directory" && exit 1
-DebugMsg 3 "created temporary directory $TEMPD"
-
-# make sure the temp directory gets removed on script exit.
-trap "exit 1" HUP INT PIPE QUIT TERM
-trap 'DebugMsg 3 "removing temporary directory $TEMPD"; rm -rf "$TEMPD"'  EXIT
-
-# make sure the temp directory is in /tmp.
-[[ ! "$TEMPD" = /tmp/* ]] && ErrorMsg "temporary directory not in /tmp" && exit 1
-
 [ "${INFILE}" == "" ] && INFILE="/dev/stdin"
-[ "${INFILE}" == "/dev/stdin" ] && OUTFILE="fromstdin.$$.sae"
-[ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.sae"
+[ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.sae"
 
 DESTKEY="unspecified"
 if [ ! "${PUBKEYFILE}" == "" ]; then
 	[ ! -e "$PUBKEYFILE" ] && ErrorMsg "public key file \"$PUBKEYFILE\" cannot be opened" && exit 1
-	DebugMsg 3 "reading public key from \"$PUBKEYFILE\""
+	DebugMsg 1 "reading public key from \"$PUBKEYFILE\""
 	# read first line of file
 	read KeyType RestOfLine < ${PUBKEYFILE} 
         PublicKey=${RestOfLine%% *}
         KeyIDShort=${PublicKey: -8:8}
         if [[ $KeyType = ssh-rsa ]]; then
-	    DebugMsg 1 "reading public key from \"$PUBKEYFILE\""
 	    DebugMsg 3 "using public key $KeyIDShort"
 	    DESTKEY=$PublicKey
         else 
@@ -72,7 +43,7 @@ if [ ! "${PUBKEYFILE}" == "" ]; then
         fi
 fi
 
-DebugMsg 3 "reading from \"$INFILE\", writing to \"$OUTFILE.*\""
+DebugMsg 3 "reading from \"$INFILE\", writing to \"$OUTFILE\""
 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 
@@ -120,7 +91,7 @@ while IFS='' read -r LinefromFile || [[ -n "${LinefromFile}" ]]; do
     if [[ $KeyType = ssh-rsa ]]; then
             if [[ ${DESTKEY} == "unspecified" || ${PublicKey} = ${DESTKEY} ]]; then
                 ((RSACounter++))
-		EncOutputFile="${TEMPD}/${OUTFILE}.${KeyIDShort}"
+		EncOutputFile="${TEMPD}/decoded.$$.${KeyIDShort}"
 		DebugMsg 1 "secret key found in agent"
 		DebugMsg 3 "key #$Counter ($KeyIDShort) is accepted, result written to \"$EncOutputFile\")" #: ${LinefromFile}"
 	        mv "${ENCFILE}.${Counter}" "$EncOutputFile"
@@ -153,7 +124,7 @@ fi
 if (( $RSACounter > 0 )); then
     DebugMsg 3 "accepted $RSACounter key(s)"
     if (( $RSACounter  == 1 )); then
-	if [ "${INFILE}" == "/dev/stdin" ]; then
+	if [ "${OUTFILE}" == "" ]; then
 	    cat "$EncOutputFile" 
 	    DebugMsg 1 "output sent to STDOUT"
 	else
