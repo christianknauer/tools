@@ -11,7 +11,7 @@ script_directory=${script_path_in_package%/*}
 source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -d LOGGING_DEBUG_LEVEL ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -m MD5FILE -d LOGGING_DEBUG_LEVEL ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
@@ -28,17 +28,24 @@ sacrypt_CreateTempDir
 if [[ "${INFILE}" == *.sae ]]; then
 	OUTNAME=${INFILE%".sae"}
 	[ ! -f "${OUTNAME}" ] && [ "${OUTFILE}" == "" ] && OUTFILE="${OUTNAME}"
+	[ "${MD5FILE}" == "" ] && MD5FILE="${OUTNAME}.sam"
 fi
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.dec"
+[ "${MD5FILE}" == "" ] && MD5FILE="message.sam"
+[ ! -f "${MD5FILE}" ] && MD5FILE=""
 
-DebugMsg 1 "reading from \"$INFILE\", writing to \"$OUTFILE\""
+DebugMsg 3 "reading encrypted input data from \"$INFILE\""
+DebugMsg 3 "writing raw data to \"$OUTFILE\""
+DebugMsg 3 "reading checksum from \"$MD5FILE\""
 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 
 DECFILE=$(mktemp -p $TEMPD)
-[ ! -e "$DECFILE" ] && ErrorMsg "failed to create temporary dec file" && exit 1
-
-DebugMsg 1 "using \"$DECFILE\" as temp dec file"
+TMDFILE=$(mktemp -p $TEMPD)
+[ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
+[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp md5 file" && exit 1
+DebugMsg 3 "using \"$DECFILE\" as temp dec file"
+DebugMsg 3 "using \"$TMDFILE\" as temp md5 file"
 
 ssh-add -L > /dev/null ; ec=$?  
 case $ec in
@@ -59,8 +66,19 @@ if [ "${OUTFILE}" == "" ]; then
     cat "${DECFILE}" 
     DebugMsg 1 "output sent to STDOUT"
 else
-    mv "${DECFILE}" "${OUTFILE}"
+    cp "${DECFILE}" "${OUTFILE}"
     DebugMsg 1 "output written to \"${OUTFILE}\""
+fi
+
+if [ "${MD5FILE}" == "" ]; then
+    DebugMsg 1 "no checksum data available, verification skipped"
+else
+    md5sum "${DECFILE}" | cut -f 1 -d ' ' > "${TMDFILE}"
+    cmp -s "${MD5FILE}" "${TMDFILE}" ; ec=$?  
+    case $ec in
+        0) DebugMsg 1 "checksum verification passed";;
+        *) ErrorMsg "checksum verification failed" && exit 1;;
+    esac
 fi
 
 exit 0
