@@ -36,25 +36,26 @@ DebugMsg 3 "writing encrypted data to \"$OUTFILE\""
 DebugMsg 3 "writing checksum to \"$CHKFILE\""
 DebugMsg 3 "writing public key hash to \"$PKHFILE\""
 
-DESTKEY="unspecified"
-DESTKEYHASH="*"
-if [ ! "${PUBKEYFILE}" == "" ]; then
-	[ ! -e "$PUBKEYFILE" ] && ErrorMsg "public key file \"$PUBKEYFILE\" cannot be opened" && exit 1
-	DebugMsg 1 "reading public key from \"$PUBKEYFILE\""
-	# read first line of file
-	read KeyType RestOfLine < ${PUBKEYFILE} 
-        PublicKey=${RestOfLine%% *}
-        PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
-        #KeyIDShort=${PublicKey: -8:8}
-        if [[ $KeyType = ssh-rsa ]]; then
-	    DebugMsg 3 "using public key $PublicKeyHash"
-	    DESTKEY=$PublicKey
-	    DESTKEYHASH=$PublicKeyHash
-        else 
-	    ErrorMsg "public key ($PublicKeyHash) from \"$PUBKEYFILE\" is not an RSA key" && exit 1
-        fi
-fi
+#DESTKEY="unspecified"
+#DESTKEYHASH=""
+#if [ ! "${PUBKEYFILE}" == "" ]; then
+#	[ ! -e "$PUBKEYFILE" ] && ErrorMsg "public key file \"$PUBKEYFILE\" cannot be opened" && exit 1
+#	DebugMsg 1 "reading public key from \"$PUBKEYFILE\""
+#	# read first line of file
+#	read KeyType RestOfLine < ${PUBKEYFILE} 
+#        PublicKey=${RestOfLine%% *}
+#        PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
+#        #KeyIDShort=${PublicKey: -8:8}
+#        if [[ $KeyType = ssh-rsa ]]; then
+#	    DebugMsg 3 "using public key $PublicKeyHash"
+#	    DESTKEY=$PublicKey
+#	    DESTKEYHASH=$PublicKeyHash
+#        else 
+#	    ErrorMsg "public key ($PublicKeyHash) from \"$PUBKEYFILE\" is not an RSA key" && exit 1
+#        fi
+#fi
 
+# create temp files
 RAWFILE=$(mktemp -p $TEMPD)
 ENCFILE=$(mktemp -p $TEMPD)
 VERFILE=$(mktemp -p $TEMPD)
@@ -64,7 +65,16 @@ VERFILE=$(mktemp -p $TEMPD)
 DebugMsg 3 "using \"$RAWFILE\" as temp raw file"
 DebugMsg 3 "using \"$ENCFILE\" as temp enc file"
 DebugMsg 3 "using \"$VERFILE\" as temp ver file"
- 
+
+# determine encryption key specification
+if sacrypt_DetermineKeyHash ${PUBKEYFILE}; then
+    DESTKEYHASH=$retval
+    DebugMsg 1 "key specification is ${DESTKEYHASH}"
+else
+    ErrorMsg "incorrect key specification"; exit 1
+fi
+
+# find the encryption key in the agent 
 if sacrypt_FindKeyInAgent ${DESTKEYHASH}; then
     KEYINDEX=$retval
     DebugMsg 1 "key ${DESTKEYHASH} found in agent (#${KEYINDEX})"
@@ -72,7 +82,7 @@ else
     ErrorMsg "key ${DESTKEYHASH} not found in agent (#$retval)"; exit 1
 fi
 
-# read file 
+# read input file 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 cat "${INFILE}" > "${RAWFILE}"
 
@@ -94,88 +104,6 @@ chmod go-rwx "${EncOutputFile}"
 KeyFile="${TEMPD}/key.$$.${DESTKEYHASH}"
 echo -n "${DESTKEYHASH}" > "${KeyFile}"
 	
-#ssh-add -L > ${KEYFILE} 2> /dev/null; ec=$?  # grab the exit code into a variable so that it can
-#                                 # be reused later, without the fear of being overwritten
-#
-#NROFKEYS=$(cat ${KEYFILE} | wc -l)
-#
-#case $ec in
-#    0) DebugMsg 3 "agent provides ${NROFKEYS} key(s)";;
-#    1) ErrorMsg "ssh-agent has no identities ($ec)"; exit 1;;
-#    2) ErrorMsg "ssh-agent is not running ($ec)"; exit 2;;
-#    *) ErrorMsg "ssh-agent gives unknown exit code ($ec)"; exit 2;;
-#esac
-#
-#EncOutputFile=""
-#KeyFile=""
-#Counter=0
-#RSACounter=0
-
-#while IFS='' read -r LinefromFile || [[ -n "${LinefromFile}" ]]; do
-#
-#    ((Counter++))
-#
-#    KeyType=${LinefromFile%% *}
-#    RestOfLine=${LinefromFile#* }
-#    PublicKey=${RestOfLine%% *}
-#    PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
-#    # KeyIDShort=${PublicKeyHash:0:8}
-#
-#    DebugMsg 3 "Found $KeyType key (${PublicKeyHash})"
-#    if [[ $KeyType = ssh-rsa ]]; then
-#            #if [[ ${DESTKEY} == "unspecified" || ${PublicKey} = ${DESTKEY} ]]; then
-#            if [[ ${DESTKEY} == "unspecified" || ${PublicKeyHash} = ${DESTKEYHASH} ]]; then
-#                ((RSACounter++))
-#		EncOutputFile="${TEMPD}/decoded.$$.${PublicKeyHash}"
-#		KeyFile="${TEMPD}/key.$$.${PublicKeyHash}"
-#		DebugMsg 1 "secret key found in agent"
-#		DebugMsg 3 "key #$Counter ($PublicKeyHash) is accepted, result written to \"$EncOutputFile\")" #: ${LinefromFile}"
-#	        mv "${ENCFILE}.${Counter}" "$EncOutputFile"
-#	        [ ! -e "$EncOutputFile" ] && ErrorMsg "failed to create output file \"$EncOutputFile\"" && exit 1
-#	        chmod go-rwx "${EncOutputFile}"
-#		echo -n "${PublicKeyHash}" > "${KeyFile}"
-#		break
-#	    else
-#	        DebugMsg 3 "key #$Counter ($PublicKeyHash) is rejected (not the destination key)" 
-#	    fi
-#    else 
-#	DebugMsg 2 "key #$Counter ($PublicKeyHash) is ignored (no RSA key)" #: ${LinefromFile}"
-#    fi
-#done < "${KEYFILE}"
-
-#if (( $RSACounter > 0 )); then
-#    DebugMsg 3 "accepted $RSACounter key(s)"
-#    # verify encryption
-#    DebugMsg 3 "verifying encryption"
-#    cat "${EncOutputFile}" | ${DECRYPT} > "${VERFILE}"
-#    cmp -s "${RAWFILE}" "${VERFILE}" ; ec=$?  
-#    case $ec in
-#       0) DebugMsg 1 "verification passed";;
-#       *) ErrorMsg "verification failed" && exit 1;;
-#    esac
-#
-#    if (( $RSACounter  == 1 )); then
-#	if [ "${OUTFILE}" == "" ]; then
-#	    cat "$EncOutputFile" 
-#	    DebugMsg 1 "output sent to STDOUT"
-#	else
-#	    mv "${EncOutputFile}" "${OUTFILE}"
-#	    DebugMsg 1 "output written to \"${OUTFILE}\""
-#	fi
-#    else
-#	ErrorMsg "only one key should be accepted"; exit 1
-#    fi
-#    sacrypt_ComputeHashOfFile "${RAWFILE}" > "${CHKFILE}"
-#    DebugMsg 1 "checksum written to \"${CHKFILE}\""
-#
-#    cp "${KeyFile}" "${PKHFILE}"
-#    DebugMsg 1 "key has written to \"${PKHFILE}\""
-#
-#    exit 0
-#else
-#    ErrorMsg "key ${DESTKEYHASH} not found"; exit 1
-#fi 
-
 # verify encryption
 DebugMsg 3 "verifying encryption"
 cat "${EncOutputFile}" | ${DECRYPT} > "${VERFILE}"

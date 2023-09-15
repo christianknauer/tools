@@ -38,8 +38,6 @@ DebugMsg 3 "reading encrypted input data from \"$INFILE\""
 DebugMsg 3 "writing raw data to \"$OUTFILE\""
 DebugMsg 3 "reading checksum from \"$CHKFILE\""
 
-[ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
-
 DECFILE=$(mktemp -p $TEMPD)
 TMDFILE=$(mktemp -p $TEMPD)
 [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
@@ -55,6 +53,7 @@ case $ec in
     *) ErrorMsg "ssh-agent gives unknown exit code ($ec)"; exit 2;;
 esac
 
+[ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 cat "${INFILE}" | ${DECRYPT} > "${DECFILE}" ; ec=$?  
 case $ec in
     0) DebugMsg 1 "decryption successful";;

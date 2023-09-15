@@ -30,13 +30,57 @@ sacrypt_ComputeHashOfFile () {
     openssl dgst -sha256 < "$1" | cut -f 2 -d ' '
 }
 
+sacrypt_DetermineKeyHash () {
+    retval=""
+    local KEYSPEC=$1
+
+    # no key specified (via -k), use "" as hash pattern
+    [ "${KEYSPEC}" == "" ] && return 0
+
+    # key specified is a hash
+    if [ ! -e "$KEYSPEC" ]; then
+        DebugMsg 1 "key spec \"$KEYSPEC\" is not a file"
+	retval=$KEYSPEC
+	return 0
+    fi
+
+    # key specified is a file
+    
+    DebugMsg 3 "reading key from \"$KEYSPEC\""
+
+    # file contains hash of key
+    if [[ "${KEYSPEC}" == *.${SA_CRYPT_KEY_EXT} ]]; then
+	DebugMsg 3 "using hash file format"
+	retval=$(cat ${KEYSPEC})
+	return 0
+    fi
+
+    # file contains key
+    DebugMsg 3 "using ssh file format"
+
+    # read first line of file
+    local KeyType 
+    local RestOfLine 
+    read KeyType RestOfLine < ${PUBKEYFILE} 
+    local PublicKey=${RestOfLine%% *}
+    local PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
+    if [[ $KeyType = ssh-rsa ]]; then
+        DebugMsg 3 "using public key $PublicKeyHash"
+        retval=$PublicKeyHash
+	return 0
+    else 
+        ErrorMsg "key ($PublicKeyHash) is not an RSA key"
+	return 1
+    fi
+}
+
 # find key in agent
 
 sacrypt_FindKeyInAgent () {
 
     retval="0"
 
-    local DESTKEYHASH=$1
+    local KeyHashSpec=$1
 
     local KEYFILE=$(mktemp -p $TEMPD)
     [ ! -e "$KEYFILE" ] && ErrorMsg "failed to create temp key file" && exit 1
@@ -52,26 +96,22 @@ sacrypt_FindKeyInAgent () {
         *) ErrorMsg "ssh-agent gives unknown exit code ($ec)"; exit 2;;
     esac
 
-    local KeyType
-    local RestOfLine
-    local PublicKey
-    local PublicKeyHash
-
     local Counter=0
     while IFS='' read -r LinefromFile || [[ -n "${LinefromFile}" ]]; do
 
         ((Counter++))
 
-        KeyType=${LinefromFile%% *}
-        RestOfLine=${LinefromFile#* }
-        PublicKey=${RestOfLine%% *}
-        PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
+        local KeyType=${LinefromFile%% *}
+        local RestOfLine=${LinefromFile#* }
+        local PublicKey=${RestOfLine%% *}
+        local PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
 
         DebugMsg 3 "Found $KeyType key (${PublicKeyHash})"
         if [[ $KeyType = ssh-rsa ]]; then
-            if [[ ${DESTKEY} == "unspecified" || ${PublicKeyHash} = ${DESTKEYHASH} ]]; then
-		DebugMsg 1 "secret key $DESTKEYHASH found in agent"
-		DebugMsg 3 "key #$Counter ($PublicKeyHash) is accepted"
+            #if [[ ${DESTKEY} == "unspecified" || ${PublicKeyHash} = ${KeyHashSpec} ]]; then
+            ##if [[ ${KeyHashSpec} == "" || ${PublicKeyHash} = ${KeyHashSpec}* ]]; then
+            if [[ ${PublicKeyHash} = ${KeyHashSpec}* ]]; then
+		DebugMsg 3 "key ${PublicKeyHash} (${KeyHashSpec}*) found in agent (#$Counter)"
 	        retval=$Counter	
 		# key found
     		return 0
@@ -93,6 +133,11 @@ sacrypt_FindKeyInAgent () {
 # result stored in globals ENCRYPT, DECRYPT
 
 sacrypt_CheckBinaries () {
+    if hash openssl 2>/dev/null; then
+        DebugMsg 3 "openssl found"
+    else
+        ErrorMsg "openssl not found" && exit 1
+    fi
     local ARCH=$(uname -m)
     local CODE_DIR="$(dirname $0)/exec/${ARCH}"
     ENCRYPT="${CODE_DIR}/sshcrypt-agent-encrypt"
