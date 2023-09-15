@@ -63,7 +63,8 @@ fi
 
 if sacrypt_FindKeyInAgent ${DESTKEYHASH}; then
     KEYINDEX=$retval
-    DebugMsg 1 "key ${DESTKEYHASH} found in agent (#${KEYINDEX})"
+    KEYHASH=$retval1
+    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
 else
     ErrorMsg "key ${DESTKEYHASH} not found in agent (#$retval)"; exit 1
 fi
@@ -83,12 +84,12 @@ while IFS='' read -r LinefromFile || [[ -n "${LinefromFile}" ]]; do
 done < "${ENCFILE}"
 
 # extract the correct file
-EncOutputFile="${TEMPD}/decoded.$$.${DESTKEYHASH}"
+EncOutputFile="${TEMPD}/decoded.$$.${KEYHASH}"
 mv "${ENCFILE}.${Counter}" "${EncOutputFile}"
 [ ! -e "$EncOutputFile" ] && ErrorMsg "failed to create output file \"${EncOutputFile}\"" && exit 1
 chmod go-rwx "${EncOutputFile}"
-KeyFile="${TEMPD}/key.$$.${DESTKEYHASH}"
-echo -n "${DESTKEYHASH}" > "${KeyFile}"
+KeyFile="${TEMPD}/key.$$.${KEYHASH}"
+echo -n "${KEYHASH}" > "${KeyFile}"
 	
 # verify encryption
 DebugMsg 3 "verifying encryption"

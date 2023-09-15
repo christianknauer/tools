@@ -79,6 +79,7 @@ sacrypt_DetermineKeyHash () {
 sacrypt_FindKeyInAgent () {
 
     retval="0"
+    retval1=""
 
     local KeyHashSpec=$1
 
@@ -113,6 +114,7 @@ sacrypt_FindKeyInAgent () {
             if [[ ${PublicKeyHash} = ${KeyHashSpec}* ]]; then
 		DebugMsg 3 "key ${PublicKeyHash} (${KeyHashSpec}*) found in agent (#$Counter)"
 	        retval=$Counter	
+	        retval1=${PublicKeyHash}	
 		# key found
     		return 0
 		break
