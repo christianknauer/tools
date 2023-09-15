@@ -11,7 +11,7 @@ script_directory=${script_path_in_package%/*}
 source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -m MD5FILE -d LOGGING_DEBUG_LEVEL ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -d LOGGING_DEBUG_LEVEL ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
@@ -25,29 +25,29 @@ sacrypt_CreateTempDir
 # main
 
 [ "${INFILE}" == "" ] && INFILE="/dev/stdin"
-if [[ "${INFILE}" == *.sae ]]; then
-	OUTNAME=${INFILE%".sae"}
+if [[ "${INFILE}" == *.${SA_CRYPT_ENC_EXT} ]]; then
+	OUTNAME=${INFILE%".${SA_CRYPT_ENC_EXT}"}
 	[ ! -f "${OUTNAME}" ] && [ "${OUTFILE}" == "" ] && OUTFILE="${OUTNAME}"
-	[ "${MD5FILE}" == "" ] && MD5FILE="${OUTNAME}.sam"
+	[ "${CHKFILE}" == "" ] && CHKFILE="${OUTNAME}.${SA_CRYPT_CHK_EXT}"
 fi
-[ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.dec"
-[ "${MD5FILE}" == "" ] && MD5FILE="message.sam"
-[ ! -f "${MD5FILE}" ] && MD5FILE=""
+[ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.${SA_CRYPT_DEC_EXT}"
+[ "${CHKFILE}" == "" ] && CHKFILE="message.${SA_CRYPT_CHK_EXT}"
+[ ! -f "${CHKFILE}" ] && CHKFILE=""
 
 DebugMsg 3 "reading encrypted input data from \"$INFILE\""
 DebugMsg 3 "writing raw data to \"$OUTFILE\""
-DebugMsg 3 "reading checksum from \"$MD5FILE\""
+DebugMsg 3 "reading checksum from \"$CHKFILE\""
 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 
 DECFILE=$(mktemp -p $TEMPD)
 TMDFILE=$(mktemp -p $TEMPD)
 [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
-[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp md5 file" && exit 1
+[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
 DebugMsg 3 "using \"$DECFILE\" as temp dec file"
-DebugMsg 3 "using \"$TMDFILE\" as temp md5 file"
+DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
 
-ssh-add -L > /dev/null ; ec=$?  
+ssh-add -L > /dev/null 2> /dev/null; ec=$?  
 case $ec in
     0) DebugMsg 3 "ssh-agent provides key(s)";;
     1) ErrorMsg "ssh-agent has no identities ($ec)"; exit 1;;
@@ -70,11 +70,11 @@ else
     DebugMsg 1 "output written to \"${OUTFILE}\""
 fi
 
-if [ "${MD5FILE}" == "" ]; then
+if [ "${CHKFILE}" == "" ]; then
     DebugMsg 1 "no checksum data available, verification skipped"
 else
-    md5sum "${DECFILE}" | cut -f 1 -d ' ' > "${TMDFILE}"
-    cmp -s "${MD5FILE}" "${TMDFILE}" ; ec=$?  
+    sacrypt_ComputeHashOfFile "${DECFILE}" > "${TMDFILE}"
+    cmp -s "${CHKFILE}" "${TMDFILE}" ; ec=$?  
     case $ec in
         0) DebugMsg 1 "checksum verification passed";;
         *) ErrorMsg "checksum verification failed" && exit 1;;
