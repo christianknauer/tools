@@ -29,6 +29,7 @@ if [[ "${INFILE}" == *.${SA_CRYPT_ENC_EXT} ]]; then
 	OUTNAME=${INFILE%".${SA_CRYPT_ENC_EXT}"}
 	[ ! -f "${OUTNAME}" ] && [ "${OUTFILE}" == "" ] && OUTFILE="${OUTNAME}"
 	[ "${CHKFILE}" == "" ] && CHKFILE="${OUTNAME}.${SA_CRYPT_CHK_EXT}"
+        [ "${PUBKEYFILE}" == "" ] && PUBKEYFILE="${OUTNAME}.${SA_CRYPT_KEY_EXT}"
 fi
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.${SA_CRYPT_DEC_EXT}"
 [ "${CHKFILE}" == "" ] && CHKFILE="message.${SA_CRYPT_CHK_EXT}"
@@ -39,19 +40,30 @@ DebugMsg 3 "writing raw data to \"$OUTFILE\""
 DebugMsg 3 "reading checksum from \"$CHKFILE\""
 
 DECFILE=$(mktemp -p $TEMPD)
-TMDFILE=$(mktemp -p $TEMPD)
 [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
-[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
 DebugMsg 3 "using \"$DECFILE\" as temp dec file"
+
+TMDFILE=$(mktemp -p $TEMPD)
+[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
 DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
 
-ssh-add -L > /dev/null 2> /dev/null; ec=$?  
-case $ec in
-    0) DebugMsg 3 "ssh-agent provides key(s)";;
-    1) ErrorMsg "ssh-agent has no identities ($ec)"; exit 1;;
-    2) ErrorMsg "ssh-agent is not running ($ec)"; exit 2;;
-    *) ErrorMsg "ssh-agent gives unknown exit code ($ec)"; exit 2;;
-esac
+# determine encryption key specification
+
+if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
+    DESTKEYHASH=$retval
+    DebugMsg 1 "key specification is ${DESTKEYHASH}"
+else
+    ErrorMsg "incorrect key specification"; exit 1
+fi
+
+# find the encryption key in the agent 
+
+if sacrypt_FindKeyInAgent ${DESTKEYHASH}; then
+    KEYINDEX=$retval
+    DebugMsg 1 "key ${DESTKEYHASH} found in agent (#${KEYINDEX})"
+else
+    ErrorMsg "key ${DESTKEYHASH} not found in agent (#$retval)"; exit 1
+fi
 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 cat "${INFILE}" | ${DECRYPT} > "${DECFILE}" ; ec=$?  

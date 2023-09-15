@@ -36,38 +36,23 @@ DebugMsg 3 "writing encrypted data to \"$OUTFILE\""
 DebugMsg 3 "writing checksum to \"$CHKFILE\""
 DebugMsg 3 "writing public key hash to \"$PKHFILE\""
 
-#DESTKEY="unspecified"
-#DESTKEYHASH=""
-#if [ ! "${PUBKEYFILE}" == "" ]; then
-#	[ ! -e "$PUBKEYFILE" ] && ErrorMsg "public key file \"$PUBKEYFILE\" cannot be opened" && exit 1
-#	DebugMsg 1 "reading public key from \"$PUBKEYFILE\""
-#	# read first line of file
-#	read KeyType RestOfLine < ${PUBKEYFILE} 
-#        PublicKey=${RestOfLine%% *}
-#        PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
-#        #KeyIDShort=${PublicKey: -8:8}
-#        if [[ $KeyType = ssh-rsa ]]; then
-#	    DebugMsg 3 "using public key $PublicKeyHash"
-#	    DESTKEY=$PublicKey
-#	    DESTKEYHASH=$PublicKeyHash
-#        else 
-#	    ErrorMsg "public key ($PublicKeyHash) from \"$PUBKEYFILE\" is not an RSA key" && exit 1
-#        fi
-#fi
-
 # create temp files
+
 RAWFILE=$(mktemp -p $TEMPD)
-ENCFILE=$(mktemp -p $TEMPD)
-VERFILE=$(mktemp -p $TEMPD)
 [ ! -e "$RAWFILE" ] && ErrorMsg "failed to create temp raw file" && exit 1
-[ ! -e "$ENCFILE" ] && ErrorMsg "failed to create temp enc file" && exit 1
-[ ! -e "$VERFILE" ] && ErrorMsg "failed to create temp ver file" && exit 1
 DebugMsg 3 "using \"$RAWFILE\" as temp raw file"
+
+ENCFILE=$(mktemp -p $TEMPD)
+[ ! -e "$ENCFILE" ] && ErrorMsg "failed to create temp enc file" && exit 1
 DebugMsg 3 "using \"$ENCFILE\" as temp enc file"
+
+VERFILE=$(mktemp -p $TEMPD)
+[ ! -e "$VERFILE" ] && ErrorMsg "failed to create temp ver file" && exit 1
 DebugMsg 3 "using \"$VERFILE\" as temp ver file"
 
 # determine encryption key specification
-if sacrypt_DetermineKeyHash ${PUBKEYFILE}; then
+
+if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
     DESTKEYHASH=$retval
     DebugMsg 1 "key specification is ${DESTKEYHASH}"
 else
@@ -75,6 +60,7 @@ else
 fi
 
 # find the encryption key in the agent 
+
 if sacrypt_FindKeyInAgent ${DESTKEYHASH}; then
     KEYINDEX=$retval
     DebugMsg 1 "key ${DESTKEYHASH} found in agent (#${KEYINDEX})"
