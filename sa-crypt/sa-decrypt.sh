@@ -51,13 +51,6 @@ sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
 [ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
 DebugMsg 1 "key is ${KEYSPEC}"
 
-#if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
-#    KEYSPEC=$retval
-#    DebugMsg 1 "key specification is ${KEYSPEC}"
-#else
-#    ErrorMsg "incorrect key specification"; exit 1
-#fi
-
 # decrypt the file
 sacrypt_DecryptFile "${INFILE}" "${DECFILE}" "${KEYSPEC}" "${TEMPD}" "${CHKFILE}"; ec=$?
 [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec

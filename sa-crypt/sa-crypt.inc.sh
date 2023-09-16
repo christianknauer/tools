@@ -100,13 +100,6 @@ sacrypt_DecryptFile () {
     [ ! $ec -eq 0 ] && return $ec
     local KEYINDEX=$retval
     local KEYHASH=$retval1
-    #if sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; then
-    #    local KEYINDEX=$retval
-    #    local KEYHASH=$retval1
-    #    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
-    #else
-    #    ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; return 1
-    #fi
     DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
 
     retval=""
@@ -160,13 +153,7 @@ sacrypt_EncryptFile () {
     [ ! $ec -eq 0 ] && return $ec
     local KEYINDEX=$retval
     local KEYHASH=$retval1
-    #if sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; then
-    #    local KEYINDEX=$retval
-    #    local KEYHASH=$retval1
-    #    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
-    #else
-    #    retval="key ${KEYSPEC} not found in agent (#$retval)"; return 1
-    #fi
+    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
 
     retval=""
 
@@ -174,10 +161,6 @@ sacrypt_EncryptFile () {
     [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
     cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}"; ec=$?  
     [ ! $ec -eq 0 ] && retval="encryption failed ($ec)" && return $ec
-#    case $ec in
-#        0) DebugMsg 1 "encryption ok";;
-#	*) retval="encryption failed ($ec)"; return $ec;;
-#    esac
 
     # split encrypted file line by line
     local Counter=0
