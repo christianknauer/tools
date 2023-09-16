@@ -43,26 +43,47 @@ DECFILE=$(mktemp -p $TEMPD)
 [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
 DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 
-TMDFILE=$(mktemp -p $TEMPD)
-[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
-DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
+#TMDFILE=$(mktemp -p $TEMPD)
+#[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
+#DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
 
 # determine encryption key specification
-
 if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
-    DESTKEYHASH=$retval
-    DebugMsg 1 "key specification is ${DESTKEYHASH}"
+    KEYSPEC=$retval
+    DebugMsg 1 "key specification is ${KEYSPEC}"
 else
     ErrorMsg "incorrect key specification"; exit 1
 fi
 
+# decrypt the file
+sacrypt_DecryptFile "${INFILE}" "${DECFILE}" "${KEYSPEC}" "${TEMPD}" "${CHKFILE}"; ec=$?
+if [ $ec -eq 0 ] 
+then 
+  DebugMsg 1 "decryption ok"
+else 
+  ErrorMsg "decryption failed"; exit $ec
+fi
+
+# create output
+if [ "${OUTFILE}" == "" ]; then
+    cat "${DECFILE}" 
+    DebugMsg 1 "output sent to STDOUT"
+else
+    cp "${DECFILE}" "${OUTFILE}"
+    DebugMsg 1 "output written to \"${OUTFILE}\""
+fi
+
+exit 0
+
+# EOF
 # find the encryption key in the agent 
 
-if sacrypt_FindKeyInAgent ${DESTKEYHASH}; then
+if sacrypt_FindKeyInAgent ${KEYSPEC}; then
     KEYINDEX=$retval
-    DebugMsg 1 "key ${DESTKEYHASH} found in agent (#${KEYINDEX})"
+    KEYHASH=$retval1
+    DebugMsg 1 "key ${KEYSPEC} found in agent (#${KEYINDEX})"
 else
-    ErrorMsg "key ${DESTKEYHASH} not found in agent (#$retval)"; exit 1
+    ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; exit 1
 fi
 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1

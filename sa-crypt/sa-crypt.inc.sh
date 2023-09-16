@@ -74,6 +74,66 @@ sacrypt_DetermineKeyHash () {
     fi
 }
 
+# decrypt a file 
+
+sacrypt_DecryptFile () {
+
+    local INFILE=$1
+    local OUTFILE=$2
+    local KEYSPEC=$3
+    local TEMPD=$4
+    local CHKFILE=$5
+
+    [ ! -d "${TEMPD}" ] && ErrorMsg "temp dir \"${TEMPD}\" not found" && return 1
+
+    local DECFILE=$(mktemp -p $TEMPD)
+    [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && return 1
+    DebugMsg 3 "using \"$DECFILE\" as temp dec file"
+
+    local TMDFILE=$(mktemp -p $TEMPD)
+    [ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && return 1
+    DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
+
+    # find the encryption key in the agent 
+
+    if sacrypt_FindKeyInAgent ${KEYSPEC}; then
+        local KEYINDEX=$retval
+        local KEYHASH=$retval1
+        DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
+    else
+        ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; return 1
+    fi
+
+    retval=""
+
+    [ ! -e "${INFILE}" ] && ErrorMsg "input file \"${INFILE}\" not found" && return 1
+    cat "${INFILE}" | ${DECRYPT} > "${DECFILE}" ; local ec=$?  
+    case $ec in
+        0) DebugMsg 1 "decryption successful";;
+        1) ErrorMsg "decryption failed (key not in agent? not an sae file?)"; return 1;;
+        *) ErrorMsg "decrypt gives unknown exit code ($ec)"; return $ec;;
+    esac
+
+    [ ! -e "${DECFILE}" ] && ErrorMsg  "decrypted file \"${DECFILE}\" not found" && return 1
+
+    if [ "${CHKFILE}" == "" ]; then
+        DebugMsg 1 "no checksum data available, verification skipped"
+    else
+        sacrypt_ComputeHashOfFile "${DECFILE}" > "${TMDFILE}"
+        cmp -s "${CHKFILE}" "${TMDFILE}" ; ec=$?  
+        case $ec in
+            0) DebugMsg 1 "checksum verification passed";;
+	    *) ErrorMsg "checksum verification failed ($ec)" && return $ec;;
+        esac
+    fi
+
+    cp "${DECFILE}" "${OUTFILE}"
+    [ ! -e "${OUTFILE}" ] && ErrorMsg "failed to create output file \"${OUTFILE}\"" && return 1
+    chmod go-rwx "${OUTFILE}"
+
+    return 0
+}
+
 # encrypt a file 
 
 sacrypt_EncryptFile () {
@@ -85,12 +145,11 @@ sacrypt_EncryptFile () {
 
     [ ! -d "${TEMPD}" ] && ErrorMsg "temp dir \"${TEMPD}\" not found" && return 1
 
-    local ENCFILE=$(mktemp -p $TEMPD)
     local VERFILE=$(mktemp -p $TEMPD)
-
     [ ! -e "${VERFILE}" ] && ErrorMsg "failed to create temp ver file" && return 1
     DebugMsg 3 "using \"${VERFILE}\" as temp ver file"
 
+    local ENCFILE=$(mktemp -p $TEMPD)
     [ ! -e "${ENCFILE}" ] && ErrorMsg "failed to create temp enc file" && return 1
     DebugMsg 3 "using \"${ENCFILE}\" as temp enc file"
 
