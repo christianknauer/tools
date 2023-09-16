@@ -21,6 +21,33 @@ SA_CRYPT_DEC_EXT="dec" # decrypted data
 SA_CRYPT_ENC_EXT="sad" # encrypted data
 SA_CRYPT_KEY_EXT="sak" # public key hash
 SA_CRYPT_CHK_EXT="sac" # raw data hash
+SA_CRYPT_PKG_EXT="sae" # package (enc + pk hash + data hash)
+
+# crypto
+
+sacrypt_AESEncryptFile () {
+    local INFILE=$1
+    local OUTFILE=$2
+    local PASSWORD=$3
+    retval=""
+    cat "${INFILE}" | \
+	    openssl enc -aes-256-cbc -md sha512 -a -pbkdf2 -iter 10000 -salt \
+	                -pass pass:${PASSWORD} > "${OUTFILE}"; local ec=$?
+    [ ! $ec -eq 0 ] && retval="encryption failed ($ec)" && return $ec
+    return 0
+}
+
+sacrypt_AESDecryptFile () {
+    local INFILE=$1
+    local OUTFILE=$2
+    local PASSWORD=$3
+    retval=""
+    cat "${INFILE}" | \
+	    openssl enc -aes-256-cbc -md sha512 -a -d -pbkdf2 -iter 10000 -salt 
+	                -pass pass:${PASSWORD} > "${OUTFILE}"; local ec=$?
+    [ ! $ec -eq 0 ] && retval="decryption failed ($ec)" && return $ec
+    return 0
+}
 
 # compute hashes
 
@@ -126,8 +153,54 @@ sacrypt_DecryptFile () {
     cp "${DECFILE}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
+    DebugMsg 3 "output written to file \"${OUTFILE}\""
 
     return 0
+}
+
+# encrypt a file to package
+
+sacrypt_EncryptFileToPackage () {
+
+    local INFILE=$1
+    local KEYSPEC=$2
+    local TEMPD=$3
+
+    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
+
+    local OUTFILE="${INFILE}.${SA_CRYPT_PKG_EXT}"
+
+    local PACKAGED="${TEMPD}/${INFILE}.pkg"
+    local PKGENCFILE="${PACKAGED}/${INFILE}.${SA_CRYPT_ENC_EXT}"
+    local PKGCHKFILE="${PACKAGED}/${INFILE}.${SA_CRYPT_CHK_EXT}"
+    local PKGKEYFILE="${PACKAGED}/${INFILE}.${SA_CRYPT_KEY_EXT}"
+
+    [ -e "${PACKAGED}" ] && retval="temp package directory already exists" && return 1
+    mkdir -p "${PACKAGED}"
+    [ ! -e "${PACKAGED}" ] && retval="failed to create temp package directory" && return 1
+    
+    DebugMsg 3 "using \"${PACKAGED}\" as package directory"
+
+    # encrypt the file
+    sacrypt_EncryptFile "${INFILE}" "${PKGENCFILE}" "${KEYSPEC}" "${TEMPD}"; local ec=$?; KEYHASH=$retval
+    [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+    # create checksum file
+    sacrypt_ComputeHashOfFile "${INFILE}" > "${PKGCHKFILE}"
+    # create key file
+    echo -n "${KEYHASH}" > "${PKGKEYFILE}"
+
+    pushd "${TEMPD}" >/dev/null
+    tar cvfz "${INFILE}.pkg.tgz" "${INFILE}.pkg"/* > /dev/null; ec=$?
+    popd >/dev/null
+    [ ! $ec -eq 0 ] && retval="tar failed ($ec)" && exit $ec
+
+    cp "${TEMPD}/${INFILE}.pkg.tgz" "${OUTFILE}"
+    [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
+    chmod go-rwx "${OUTFILE}"
+
+    retval="${OUTFILE}"
+    return 0
+
 }
 
 # encrypt a file 
@@ -186,6 +259,7 @@ sacrypt_EncryptFile () {
     cp "${ANSWER}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
+    DebugMsg 3 "encrypted data written to \"${OUTFILE}\""
 
     retval=${KEYHASH}
     return 0

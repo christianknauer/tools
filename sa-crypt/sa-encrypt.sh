@@ -80,6 +80,15 @@ DebugMsg 1 "checksum written to \"${CHKFILE}\""
 echo -n "${KEYHASH}" > "${PKHFILE}"
 DebugMsg 1 "key hash written to \"${PKHFILE}\""
 
+#
+#
+#
+sacrypt_EncryptFileToPackage "${INFILE}" "${KEYSPEC}" "${TEMPD}"; ec=$?
+[ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+
+DebugMsg 1 "package encryption ok ($retval)"
+
+
 exit 0
 
 # EOF
