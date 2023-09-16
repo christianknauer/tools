@@ -74,6 +74,73 @@ sacrypt_DetermineKeyHash () {
     fi
 }
 
+# encrypt a file 
+
+sacrypt_EncryptFile () {
+
+    local INFILE=$1
+    local OUTFILE=$2
+    local KEYSPEC=$3
+    local TEMPD=$4
+
+    [ ! -d "${TEMPD}" ] && ErrorMsg "temp dir \"${TEMPD}\" not found" && return 1
+
+    local ENCFILE=$(mktemp -p $TEMPD)
+    local VERFILE=$(mktemp -p $TEMPD)
+
+    [ ! -e "${VERFILE}" ] && ErrorMsg "failed to create temp ver file" && return 1
+    DebugMsg 3 "using \"${VERFILE}\" as temp ver file"
+
+    [ ! -e "${ENCFILE}" ] && ErrorMsg "failed to create temp enc file" && return 1
+    DebugMsg 3 "using \"${ENCFILE}\" as temp enc file"
+
+    if sacrypt_FindKeyInAgent ${KEYSPEC}; then
+        local KEYINDEX=$retval
+        local KEYHASH=$retval1
+        DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
+    else
+        ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; return 1
+    fi
+
+    retval=""
+
+    # encrypt with all keys in agent
+    [ ! -e "${INFILE}" ] && ErrorMsg "input file \"${INFILE}\" not found" && return 1
+    cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}" ; local ec=$?  
+    case $ec in
+        0) DebugMsg 1 "encryption ok";;
+        *) ErrorMsg "encryption failed" && return 1;;
+    esac
+
+    # split encrypted file line by line
+    local Counter=0
+    while IFS='' read -r LinefromFile || [[ -n "${LinefromFile}" ]]; do
+        ((Counter++))
+        echo "${LinefromFile}" > "${ENCFILE}.${Counter}"
+    done < "${ENCFILE}"
+
+    # extract the correct file
+    local ANSWER="${ENCFILE}.${KEYINDEX}"
+    [ ! -e "${ANSWER}" ] && ErrorMsg  "file \"${ANSWER}\" not found" && return 1
+
+    # verify encryption
+    DebugMsg 3 "verifying encryption"
+    cat "${ANSWER}" | ${DECRYPT} > "${VERFILE}"
+    cmp -s "${INFILE}" "${VERFILE}" ; ec=$?  
+    case $ec in
+        0) DebugMsg 1 "verification ok";;
+       *) ErrorMsg "verification failed" && return 1;;
+    esac
+
+    # create output
+    cp "${ANSWER}" "${OUTFILE}"
+    [ ! -e "${OUTFILE}" ] && ErrorMsg "failed to create output file \"${OUTFILE}\"" && return 1
+    chmod go-rwx "${OUTFILE}"
+
+    retval=$KEYHASH
+    return 0
+}
+
 # find key in agent
 
 sacrypt_FindKeyInAgent () {
