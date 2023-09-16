@@ -20,7 +20,10 @@ DebugLoggingConfig 9
 sacrypt_CheckBinaries
 
 # create temporary directory
-sacrypt_CreateTempDir
+CreateTempDir; ec=$?; TEMPD=$retval
+[ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
+
+DebugMsg 1 "created temporary directory \"${TEMPD}\""
 
 # main
 
@@ -44,21 +47,21 @@ DECFILE=$(mktemp -p $TEMPD)
 DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 
 # determine encryption key specification
-if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
-    KEYSPEC=$retval
-    DebugMsg 1 "key specification is ${KEYSPEC}"
-else
-    ErrorMsg "incorrect key specification"; exit 1
-fi
+sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
+[ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
+DebugMsg 1 "key is ${KEYSPEC}"
+
+#if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
+#    KEYSPEC=$retval
+#    DebugMsg 1 "key specification is ${KEYSPEC}"
+#else
+#    ErrorMsg "incorrect key specification"; exit 1
+#fi
 
 # decrypt the file
 sacrypt_DecryptFile "${INFILE}" "${DECFILE}" "${KEYSPEC}" "${TEMPD}" "${CHKFILE}"; ec=$?
-if [ $ec -eq 0 ] 
-then 
-  DebugMsg 1 "decryption ok"
-else 
-  ErrorMsg "decryption failed"; exit $ec
-fi
+[ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+DebugMsg 1 "decryption ok"
 
 # create output
 if [ "${OUTFILE}" == "" ]; then

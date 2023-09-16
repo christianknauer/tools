@@ -11,12 +11,14 @@ LIB_DIRECTORY="${SA_CRYPT_MODULE_DIR}/../lib/bash"
 LOGGING_NAMESPACE="."; source ${LIB_DIRECTORY}/logging.inc.sh
 # load options module (use default namespace "Options.")
 source ${LIB_DIRECTORY}/options.inc.sh
+# load temp module (use global namespace)
+TEMP_NAMESPACE="."; source ${LIB_DIRECTORY}/temp.inc.sh
 
 # constants
 
 # file extensions
-SA_CRYPT_DEC_EXT="dec" # encrypted data
-SA_CRYPT_ENC_EXT="sae" # encrypted data
+SA_CRYPT_DEC_EXT="dec" # decrypted data
+SA_CRYPT_ENC_EXT="sad" # encrypted data
 SA_CRYPT_KEY_EXT="sak" # public key hash
 SA_CRYPT_CHK_EXT="sac" # raw data hash
 
@@ -34,19 +36,18 @@ sacrypt_DetermineKeyHash () {
     retval=""
     local KEYSPEC=$1
 
-    # no key specified (via -k), use "" as hash pattern
+    # no key specified 
     [ "${KEYSPEC}" == "" ] && return 0
 
     # key specified is a hash
-    if [ ! -e "$KEYSPEC" ]; then
-        DebugMsg 1 "key spec \"$KEYSPEC\" is not a file"
+    if [ ! -e "${KEYSPEC}" ]; then
+        DebugMsg 1 "key spec \"${KEYSPEC}\" is not a file"
 	retval=$KEYSPEC
 	return 0
     fi
 
     # key specified is a file
-    
-    DebugMsg 3 "reading key from \"$KEYSPEC\""
+    DebugMsg 3 "reading key from \"${KEYSPEC}\""
 
     # file contains hash of key
     if [[ "${KEYSPEC}" == *.${SA_CRYPT_KEY_EXT} ]]; then
@@ -65,11 +66,11 @@ sacrypt_DetermineKeyHash () {
     local PublicKey=${RestOfLine%% *}
     local PublicKeyHash=$(sacrypt_ComputeHashOfString $PublicKey)
     if [[ $KeyType = ssh-rsa ]]; then
-        DebugMsg 3 "using public key $PublicKeyHash"
+        DebugMsg 3 "using ssh-rsa public key $PublicKeyHash"
         retval=$PublicKeyHash
 	return 0
     else 
-        ErrorMsg "key ($PublicKeyHash) is not an RSA key"
+        retval="key ($PublicKeyHash) is not an RSA key" 
 	return 1
     fi
 }
@@ -84,51 +85,53 @@ sacrypt_DecryptFile () {
     local TEMPD=$4
     local CHKFILE=$5
 
-    [ ! -d "${TEMPD}" ] && ErrorMsg "temp dir \"${TEMPD}\" not found" && return 1
+    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
 
     local DECFILE=$(mktemp -p $TEMPD)
-    [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && return 1
+    [ ! -e "$DECFILE" ] && retval="failed to create temp dec file" && return 1
     DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 
     local TMDFILE=$(mktemp -p $TEMPD)
-    [ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && return 1
+    [ ! -e "$TMDFILE" ] && retval="failed to create temp chk file" && return 1
     DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
 
     # find the encryption key in the agent 
-
-    if sacrypt_FindKeyInAgent ${KEYSPEC}; then
-        local KEYINDEX=$retval
-        local KEYHASH=$retval1
-        DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
-    else
-        ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; return 1
-    fi
+    sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; local ec=$?  
+    [ ! $ec -eq 0 ] && return $ec
+    local KEYINDEX=$retval
+    local KEYHASH=$retval1
+    #if sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; then
+    #    local KEYINDEX=$retval
+    #    local KEYHASH=$retval1
+    #    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
+    #else
+    #    ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; return 1
+    #fi
+    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
 
     retval=""
 
-    [ ! -e "${INFILE}" ] && ErrorMsg "input file \"${INFILE}\" not found" && return 1
-    cat "${INFILE}" | ${DECRYPT} > "${DECFILE}" ; local ec=$?  
+    [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
+    cat "${INFILE}" | ${DECRYPT} > "${DECFILE}"; ec=$?  
     case $ec in
         0) DebugMsg 1 "decryption successful";;
-        1) ErrorMsg "decryption failed (key not in agent? not an sae file?)"; return 1;;
-        *) ErrorMsg "decrypt gives unknown exit code ($ec)"; return $ec;;
+        1) retval="decryption failed (key not in agent? not an sae file?)"; return 1;;
+        *) retval="decrypt gives unknown exit code ($ec)"; return $ec;;
     esac
 
-    [ ! -e "${DECFILE}" ] && ErrorMsg  "decrypted file \"${DECFILE}\" not found" && return 1
+    [ ! -e "${DECFILE}" ] && retval="decrypted file \"${DECFILE}\" not found" && return 1
 
     if [ "${CHKFILE}" == "" ]; then
         DebugMsg 1 "no checksum data available, verification skipped"
     else
         sacrypt_ComputeHashOfFile "${DECFILE}" > "${TMDFILE}"
         cmp -s "${CHKFILE}" "${TMDFILE}" ; ec=$?  
-        case $ec in
-            0) DebugMsg 1 "checksum verification passed";;
-	    *) ErrorMsg "checksum verification failed ($ec)" && return $ec;;
-        esac
+        [ ! $ec -eq 0 ] && retval="checksum verification failed ($ec)" && return $ec
+        DebugMsg 1 "checksum verification passed"
     fi
 
     cp "${DECFILE}" "${OUTFILE}"
-    [ ! -e "${OUTFILE}" ] && ErrorMsg "failed to create output file \"${OUTFILE}\"" && return 1
+    [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
 
     return 0
@@ -143,33 +146,38 @@ sacrypt_EncryptFile () {
     local KEYSPEC=$3
     local TEMPD=$4
 
-    [ ! -d "${TEMPD}" ] && ErrorMsg "temp dir \"${TEMPD}\" not found" && return 1
+    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
 
     local VERFILE=$(mktemp -p $TEMPD)
-    [ ! -e "${VERFILE}" ] && ErrorMsg "failed to create temp ver file" && return 1
+    [ ! -e "${VERFILE}" ] && retval="failed to create temp ver file" && return 1
     DebugMsg 3 "using \"${VERFILE}\" as temp ver file"
 
     local ENCFILE=$(mktemp -p $TEMPD)
-    [ ! -e "${ENCFILE}" ] && ErrorMsg "failed to create temp enc file" && return 1
+    [ ! -e "${ENCFILE}" ] && retval="failed to create temp enc file" && return 1
     DebugMsg 3 "using \"${ENCFILE}\" as temp enc file"
 
-    if sacrypt_FindKeyInAgent ${KEYSPEC}; then
-        local KEYINDEX=$retval
-        local KEYHASH=$retval1
-        DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
-    else
-        ErrorMsg "key ${KEYSPEC} not found in agent (#$retval)"; return 1
-    fi
+    sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; local ec=$?  
+    [ ! $ec -eq 0 ] && return $ec
+    local KEYINDEX=$retval
+    local KEYHASH=$retval1
+    #if sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; then
+    #    local KEYINDEX=$retval
+    #    local KEYHASH=$retval1
+    #    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
+    #else
+    #    retval="key ${KEYSPEC} not found in agent (#$retval)"; return 1
+    #fi
 
     retval=""
 
     # encrypt with all keys in agent
-    [ ! -e "${INFILE}" ] && ErrorMsg "input file \"${INFILE}\" not found" && return 1
-    cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}" ; local ec=$?  
-    case $ec in
-        0) DebugMsg 1 "encryption ok";;
-        *) ErrorMsg "encryption failed" && return 1;;
-    esac
+    [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
+    cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}"; ec=$?  
+    [ ! $ec -eq 0 ] && retval="encryption failed ($ec)" && return $ec
+#    case $ec in
+#        0) DebugMsg 1 "encryption ok";;
+#	*) retval="encryption failed ($ec)"; return $ec;;
+#    esac
 
     # split encrypted file line by line
     local Counter=0
@@ -180,7 +188,7 @@ sacrypt_EncryptFile () {
 
     # extract the correct file
     local ANSWER="${ENCFILE}.${KEYINDEX}"
-    [ ! -e "${ANSWER}" ] && ErrorMsg  "file \"${ANSWER}\" not found" && return 1
+    [ ! -e "${ANSWER}" ] && retval="file \"${ANSWER}\" not found" && return 1
 
     # verify encryption
     DebugMsg 3 "verifying encryption"
@@ -188,15 +196,15 @@ sacrypt_EncryptFile () {
     cmp -s "${INFILE}" "${VERFILE}" ; ec=$?  
     case $ec in
         0) DebugMsg 1 "verification ok";;
-       *) ErrorMsg "verification failed" && return 1;;
+	*) retval="verification failed ($ec)" && return $ec;;
     esac
 
     # create output
     cp "${ANSWER}" "${OUTFILE}"
-    [ ! -e "${OUTFILE}" ] && ErrorMsg "failed to create output file \"${OUTFILE}\"" && return 1
+    [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
 
-    retval=$KEYHASH
+    retval=${KEYHASH}
     return 0
 }
 
@@ -208,9 +216,10 @@ sacrypt_FindKeyInAgent () {
     retval1=""
 
     local KeyHashSpec=$1
+    local TEMPD=$2
 
     local KEYFILE=$(mktemp -p $TEMPD)
-    [ ! -e "$KEYFILE" ] && ErrorMsg "failed to create temp key file" && exit 1
+    [ ! -e "$KEYFILE" ] && retval="failed to create temp key file" && return 1
     DebugMsg 3 "using \"$KEYFILE\" as temp key file"
  
     ssh-add -L > ${KEYFILE} 2> /dev/null; local ec=$? 
@@ -218,9 +227,9 @@ sacrypt_FindKeyInAgent () {
     local NROFKEYS=$(cat ${KEYFILE} | wc -l)
     case $ec in
         0) DebugMsg 3 "agent provides ${NROFKEYS} key(s)";;
-        1) ErrorMsg "ssh-agent has no identities ($ec)"; exit 1;;
-        2) ErrorMsg "ssh-agent is not running ($ec)"; exit 2;;
-        *) ErrorMsg "ssh-agent gives unknown exit code ($ec)"; exit 2;;
+        1) retval="ssh-agent has no identities"; return 1;;
+        2) retval="ssh-agent is not running"; return 2;;
+        *) retval="ssh-agent gives unknown exit code ($ec)"; return $ec;;
     esac
 
     local Counter=0
@@ -235,8 +244,6 @@ sacrypt_FindKeyInAgent () {
 
         DebugMsg 3 "Found $KeyType key (${PublicKeyHash})"
         if [[ $KeyType = ssh-rsa ]]; then
-            #if [[ ${DESTKEY} == "unspecified" || ${PublicKeyHash} = ${KeyHashSpec} ]]; then
-            ##if [[ ${KeyHashSpec} == "" || ${PublicKeyHash} = ${KeyHashSpec}* ]]; then
             if [[ ${PublicKeyHash} = ${KeyHashSpec}* ]]; then
 		DebugMsg 3 "key ${PublicKeyHash} (${KeyHashSpec}*) found in agent (#$Counter)"
 	        retval=$Counter	
@@ -254,7 +261,7 @@ sacrypt_FindKeyInAgent () {
     done < "${KEYFILE}"
 
     # key not found
-    return 1
+    retval="key ${KeyHashSpec} not found in agent"; return 1
 }
 
 # check binaries
@@ -273,29 +280,6 @@ sacrypt_CheckBinaries () {
     [ ! -e "$ENCRYPT" ] && ErrorMsg "exec file \"${ENCRYPT}\" does not exist" && exit 1
     [ ! -e "$DECRYPT" ] && ErrorMsg "exec file \"${DECRYPT}\" does not exist" && exit 1
     DebugMsg 3 "using exec files \"${ENCRYPT}\", \"${DECRYPT}\""
-}
-
-# create temporary directory 
-# name stored in global TEMPD
-
-sacrypt_CreateTempDir() {
-    # create temporary directory and store its name in a variable.
-    TEMPD=$(mktemp -d)
-
-    # check if the temp directory was created successfully.
-    [ ! -e "${TEMPD}" ] && ErrorMsg "failed to create temporary directory" && exit 1
-    DebugMsg 3 "created temporary directory \"${TEMPD}\""
-
-    # make sure the temp directory gets removed on script exit.
-    trap "exit 1" HUP INT PIPE QUIT TERM
-    trap 'sacrypt_CleanupTempOnExit'  EXIT
-
-    # make sure the temp directory is in /tmp.
-    [[ ! "${TEMPD}" = /tmp/* ]] && ErrorMsg "temporary directory not in /tmp" && exit 1
-}
-
-sacrypt_CleanupTempOnExit () {
-    DebugMsg 3 "removing temporary directory \"${TEMPD}\""; rm -rf "${TEMPD}"
 }
 
 # EOF

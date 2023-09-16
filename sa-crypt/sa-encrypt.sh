@@ -20,7 +20,10 @@ DebugLoggingConfig 9
 sacrypt_CheckBinaries
 
 # create temporary directory
-sacrypt_CreateTempDir
+CreateTempDir; ec=$?; TEMPD=$retval
+[ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
+
+DebugMsg 1 "created temporary directory \"${TEMPD}\""
 
 # main
 
@@ -47,27 +50,18 @@ ENCFILE=$(mktemp -p $TEMPD)
 DebugMsg 3 "using \"$ENCFILE\" as temp enc file"
 
 # determine encryption key specification
-
-if sacrypt_DetermineKeyHash "${PUBKEYFILE}"; then
-    KEYSPEC=$retval
-    DebugMsg 1 "key specification is ${KEYSPEC}"
-else
-    ErrorMsg "incorrect key specification"; exit 1
-fi
+sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
+[ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
 
 # read input file 
 [ ! -e "$INFILE" ] && ErrorMsg "input file \"$INFILE\" cannot be opened" && exit 1
 cat "${INFILE}" > "${RAWFILE}"
 
 # encrypt the file
-sacrypt_EncryptFile "${RAWFILE}" "${ENCFILE}" "${KEYSPEC}" "${TEMPD}"; ec=$?
-KEYHASH=$retval
-if [ $ec -eq 0 ] 
-then 
-  DebugMsg 1 "encryption ok"
-else 
-  ErrorMsg "encryption failed"; exit $ec
-fi
+sacrypt_EncryptFile "${RAWFILE}" "${ENCFILE}" "${KEYSPEC}" "${TEMPD}"; ec=$?; KEYHASH=$retval
+[ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+
+DebugMsg 1 "encryption ok"
 
 # create output
 if [ "${OUTFILE}" == "" ]; then
