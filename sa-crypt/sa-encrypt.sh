@@ -11,7 +11,7 @@ script_directory=${script_path_in_package%/*}
 source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -d LOGGING_DEBUG_LEVEL ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -d LOGGING_DEBUG_LEVEL ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
@@ -58,7 +58,7 @@ sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
 cat "${INFILE}" > "${RAWFILE}"
 
 # encrypt the file
-sacrypt_EncryptFile "${RAWFILE}" "${ENCFILE}" "${KEYSPEC}" "${TEMPD}"; ec=$?; KEYHASH=$retval
+sacrypt_EncryptFile "${RAWFILE}" "${ENCFILE}" "${KEYSPEC}" "${TEMPD}" "${PASSWORD}"; ec=$?; KEYHASH=$retval
 [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
 
 DebugMsg 1 "encryption ok"
@@ -83,12 +83,11 @@ DebugMsg 1 "key hash written to \"${PKHFILE}\""
 #
 #
 #
-sacrypt_EncryptFileToPackage "${INFILE}" "${KEYSPEC}" "${TEMPD}"; ec=$?
-[ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+#sacrypt_EncryptFileToPackage "${INFILE}" "${KEYSPEC}" "${TEMPD}"; ec=$?
+#[ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
 
-DebugMsg 1 "package encryption ok ($retval)"
+#DebugMsg 1 "package encryption ok ($retval)"
 
-
-exit 0
+#exit 0
 
 # EOF

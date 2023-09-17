@@ -11,7 +11,7 @@ script_directory=${script_path_in_package%/*}
 source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -d LOGGING_DEBUG_LEVEL ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -d LOGGING_DEBUG_LEVEL ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
@@ -31,8 +31,8 @@ DebugMsg 1 "created temporary directory \"${TEMPD}\""
 if [[ "${INFILE}" == *.${SA_CRYPT_ENC_EXT} ]]; then
 	OUTNAME=${INFILE%".${SA_CRYPT_ENC_EXT}"}
 	[ ! -f "${OUTNAME}" ] && [ "${OUTFILE}" == "" ] && OUTFILE="${OUTNAME}"
-	[ "${CHKFILE}" == "" ] && CHKFILE="${OUTNAME}.${SA_CRYPT_CHK_EXT}"
-        [ "${PUBKEYFILE}" == "" ] && PUBKEYFILE="${OUTNAME}.${SA_CRYPT_KEY_EXT}"
+#	[ "${CHKFILE}" == "" ] && CHKFILE="${OUTNAME}.${SA_CRYPT_CHK_EXT}"
+#        [ "${PUBKEYFILE}" == "" ] && PUBKEYFILE="${OUTNAME}.${SA_CRYPT_KEY_EXT}"
 fi
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.${SA_CRYPT_DEC_EXT}"
 [ "${CHKFILE}" == "" ] && CHKFILE="message.${SA_CRYPT_CHK_EXT}"
@@ -46,15 +46,40 @@ DECFILE=$(mktemp -p $TEMPD)
 [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
 DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 
+#TMDFILE=$(mktemp -p $TEMPD)
+#[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
+#DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
+
 # determine encryption key specification
 sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
 [ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
-DebugMsg 1 "key is ${KEYSPEC}"
+DebugMsg 1 "key spec is ${KEYSPEC}"
+
+if [ ! "${KEYSPEC}" == "" ]; then
+    # find the encryption key in the agent 
+    sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; ec=$?  
+    [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+    KEYINDEX=$retval
+    KEYHASH=$retval1
+    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
+else
+    DebugMsg 1 "no key specified, agent not asked"
+fi
 
 # decrypt the file
-sacrypt_DecryptFile "${INFILE}" "${DECFILE}" "${KEYSPEC}" "${TEMPD}" "${CHKFILE}"; ec=$?
+sacrypt_DecryptFile "${INFILE}" "${DECFILE}" "${KEYSPEC}" "${TEMPD}" "${PASSWORD}"; ec=$?
 [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
 DebugMsg 1 "decryption ok"
+
+# verify decryption
+if [ "${CHKFILE}" == "" ]; then
+    DebugMsg 1 "no checksum data available, verification skipped"
+else
+    DebugMsg 1 "reading checksum from \"${CHKFILE}\""
+    sacrypt_VerifyFileChecksum "${DECFILE}" "${CHKFILE}" "${TEMPD}"; ec=$?
+    [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+    DebugMsg 1 "checksum verification passed"
+fi
 
 # create output
 if [ "${OUTFILE}" == "" ]; then
