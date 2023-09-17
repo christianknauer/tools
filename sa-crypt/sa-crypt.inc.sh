@@ -25,6 +25,50 @@ SA_CRYPT_CHK_EXT="sac" # raw data hash
 SA_CRYPT_PKG_EXT="sap" # package (enc + pk hash + data hash)
 
 # crypto
+sacrypt_DeterminePassword () {
+    retval=""
+    local PWSPEC=$1
+    local PWPW=$2
+    local TEMPD=$3
+
+    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
+
+    # no pw specified 
+    [ "${PWSPEC}" == "" ] && return 0
+
+    # pw specified is a string
+    if [ ! -e "${PWSPEC}" ]; then
+        DebugMsg 1 "pw spec is not a file, using spec as pw"
+	retval=${PWSPEC}
+	return 0
+    fi
+
+    # pw spec designates a file
+    DebugMsg 3 "reading pw from \"${PWSPEC}\""
+
+    # file contains hash of key
+    if [[ "${PWSPEC}" == *.${SA_CRYPT_ENC_EXT} ]]; then
+	DebugMsg 3 "using ${SA_CRYPT_ENC_EXT} format"
+
+        local DECKFILE=$(mktemp -p $TEMPD)
+        [ ! -e "${DECKFILE}" ] && retval="failed to create temp dec key file" && return 1
+        DebugMsg 3 "using \"${DECKFILE}\" as temp dec key file"
+
+	# decrypt the keyfile (empty keyspec)
+        sacrypt_DecryptFile "${PWSPEC}" "${DECKFILE}" "" "${TEMPD}" "${PWPW}"; ec=$?
+        [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+        DebugMsg 3 "key decryption ok"
+    
+	[ ! -e "${DECKFILE}" ] && retval="key file \"${DECKFILE}\"does not exist" && return 1
+
+	retval=$(cat ${DECKFILE})
+    else
+	DebugMsg 3 "using clear format"
+	retval=$(cat ${PWSPEC})
+    fi
+    return 0
+}
+
 
 sacrypt_AES_EncryptFile () {
     local INFILE=$1
@@ -45,7 +89,7 @@ sacrypt_AES_DecryptFile () {
     retval=""
     cat "${INFILE}" | \
 	    openssl enc -aes-256-cbc -md sha512 -a -d -pbkdf2 -iter 600000 -salt \
-	                -pass pass:${PASSWORD} | gunzip > "${OUTFILE}" 2> /dev/null; local ec=$?
+	                -pass pass:${PASSWORD} 2> /dev/null | gunzip > "${OUTFILE}" 2> /dev/null; local ec=$?
     [ ! $ec -eq 0 ] && retval="AES decryption failed, check password ($ec)" && return $ec
     return 0
 }
