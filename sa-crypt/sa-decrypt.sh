@@ -65,6 +65,7 @@ DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 sacrypt_DeterminePassword "${PASSWORD}" "${PPASSWORD}" "${TEMPD}"; ec=$?; PASSWORD=$retval
 [ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
  
+#DebugMsg 1 "Password is $PASSWORD"
 # determine encryption key specification
 sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
 [ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec

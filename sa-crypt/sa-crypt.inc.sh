@@ -24,6 +24,8 @@ SA_CRYPT_KEY_EXT="sak" # public key hash
 SA_CRYPT_CHK_EXT="sac" # raw data hash
 SA_CRYPT_PKG_EXT="sap" # package (enc + pk hash + data hash)
 
+SA_CRYPT_AES_KEY="jTx8I33DeeSuwIbwizOvXzwep7hZu8Fq4qR1eSnLgiUXPHPwnmxMPiouFi8ey0sXsap" 
+
 # crypto
 sacrypt_DeterminePassword () {
     retval=""
@@ -217,20 +219,20 @@ sacrypt_DecryptFile () {
 #        DebugMsg 1 "checksum verification passed"
 #    fi
     if [ "${PASSWORD}" == "" ]; then
-        DebugMsg 1 "no password specified"
-    else
-        DebugMsg 1 "decrypting with password"
-
-        local DECFILEAES=$(mktemp -p $TEMPD)
-        [ ! -e "${DECFILEAES}" ] && retval="failed to create temp aes file" && return 1
-        DebugMsg 3 "using \"${DECFILEAES}\" as temp aes file"
-
-        sacrypt_AES_DecryptFile ${DECFILE} ${DECFILEAES} ${PASSWORD}; local ec=$?  
-        [ ! $ec -eq 0 ] && return $ec
-
-        [ ! -e "${DECFILEAES}" ] && retval="file \"${DECFILEAES}\" not found" && return 1
-        DECFILE="${DECFILEAES}" 
+        DebugMsg 1 "no password specified, using default"
+        PASSWORD=$SA_CRYPT_AES_KEY
     fi
+    DebugMsg 1 "aes decryption"
+
+    local DECFILEAES=$(mktemp -p $TEMPD)
+    [ ! -e "${DECFILEAES}" ] && retval="failed to create temp aes file" && return 1
+    DebugMsg 3 "using \"${DECFILEAES}\" as temp aes file"
+
+    sacrypt_AES_DecryptFile ${DECFILE} ${DECFILEAES} ${PASSWORD}; local ec=$?  
+    [ ! $ec -eq 0 ] && return $ec
+
+    [ ! -e "${DECFILEAES}" ] && retval="file \"${DECFILEAES}\" not found" && return 1
+    DECFILE="${DECFILEAES}" 
 
     cp "${DECFILE}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
@@ -316,20 +318,20 @@ sacrypt_EncryptFile () {
     [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
 
     if [ "${PASSWORD}" == "" ]; then
-        DebugMsg 1 "no password specified"
-    else
-        DebugMsg 1 "encrypting with password"
-
-        local INFILEAES=$(mktemp -p $TEMPD)
-        [ ! -e "${INFILEAES}" ] && retval="failed to create temp aes file" && return 1
-        DebugMsg 3 "using \"${INFILEAES}\" as temp aes file"
-
-        sacrypt_AES_EncryptFile ${INFILE} ${INFILEAES} ${PASSWORD}; local ec=$?  
-        [ ! $ec -eq 0 ] && return $ec
-
-        [ ! -e "${INFILEAES}" ] && retval="file \"${INFILEAES}\" not found" && return 1
-        INFILE="${INFILEAES}" 
+        DebugMsg 1 "no password specified, using default"
+        PASSWORD=$SA_CRYPT_AES_KEY
     fi
+    DebugMsg 1 "aes encryption"
+
+    local INFILEAES=$(mktemp -p $TEMPD)
+    [ ! -e "${INFILEAES}" ] && retval="failed to create temp aes file" && return 1
+    DebugMsg 3 "using \"${INFILEAES}\" as temp aes file"
+
+    sacrypt_AES_EncryptFile ${INFILE} ${INFILEAES} ${PASSWORD}; local ec=$?  
+    [ ! $ec -eq 0 ] && return $ec
+
+    [ ! -e "${INFILEAES}" ] && retval="file \"${INFILEAES}\" not found" && return 1
+    INFILE="${INFILEAES}" 
 
     # encrypt with all keys in agent
     cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}"; ec=$?  
