@@ -18,25 +18,86 @@ TEMP_NAMESPACE="."; source ${LIB_DIRECTORY}/temp.inc.sh
 
 # file extensions
 SA_CRYPT_DEC_EXT="dec" # decrypted data
-SA_CRYPT_AES_EXT="aes" # decrypted data
 SA_CRYPT_ENC_EXT="sae" # encrypted data
 SA_CRYPT_KEY_EXT="sak" # public key hash
 SA_CRYPT_CHK_EXT="sac" # raw data hash
-SA_CRYPT_PKG_EXT="sap" # package (enc + pk hash + data hash)
 
 SA_CRYPT_AES_KEY="jTx8I33DeeSuwIbwizOvXzwep7hZu8Fq4qR1eSnLgiUXPHPwnmxMPiouFi8ey0sXsap" 
+
+# filename.${SA_CRYPT_ENC_EXT}::KEYSPEC::PASS describes an sa-encrypted
+# file filename.${SA_CRYPT_ENC_EXT} with the key specified by ${KEYSPEC} 
+# and aes-password ${PASS}; KEYSPEC and PASS can be empty
+
+# returns 1 if 
+# - $FILESPEC does not match the required pattern
+# - if the file filename.${SA_CRYPT_ENC_EXT} does not exist
+#
+# returns 0 otherwise; in that case
+# - retval=filename.${SA_CRYPT_ENC_EXT}
+# - retval1=KEYSPEC
+# - retval2=PASS
+
+sacrypt_ParseSAEFileSpec () {
+
+    local FILESPEC=$1
+
+    local FileName
+    local KeySpec
+    local Password
+
+    retval=""; retval1=""; retval2=""
+
+    if [[ "${FILESPEC}" =~ ^([^:]*${SA_CRYPT_ENC_EXT})(::)?([^:]*)(::)?([^:]*).*$ ]]; then
+        FileName="${BASH_REMATCH[1]}"
+        KeySpec="${BASH_REMATCH[3]}"
+        Password="${BASH_REMATCH[5]}"
+
+        [ ! -e "${FileName}" ] && WarnMsg "file specification refers to non-existent ${SA_CRYPT_ENC_EXT}-file \"$FileName}\"" && return 1
+	    
+	DebugMsg 3 "${SA_CRYPT_ENC_EXT}-file \"${FileName}\" specified with key spec \"${KeySpec}\" and password \"${Password}\""
+
+	retval=$FileName
+	retval1=$KeySpec
+	retval2=$Password
+	return 0
+    fi
+
+    return 1
+}
 
 # crypto
 sacrypt_DeterminePassword () {
     retval=""
     local PWSPEC=$1
-    local PWPW=$2
-    local TEMPD=$3
+    local TEMPD=$2
 
     [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
 
     # no pw specified 
     [ "${PWSPEC}" == "" ] && return 0
+
+    sacrypt_ParseSAEFileSpec "${PWSPEC}"; ec=$?
+
+    if [ $ec -eq 0 ]; then
+        local PWFileName=$retval
+	local PWFileKeySpec=$retval1
+        local PWFilePassword=$retval2
+
+	DebugMsg 3 "reading password from ${SA_CRYPT_ENC_EXT}-file \"${PWFileName}\" with keyspec \"${PWFileKeySpec}\" and password \"${PWFilePassword}\""
+
+        local DECKFILE=$(mktemp -p $TEMPD)
+        [ ! -e "${DECKFILE}" ] && retval="failed to create temp password file" && return 1
+        DebugMsg 3 "using \"${DECKFILE}\" as temp password file"
+
+	# decrypt the keyfile 
+        sacrypt_DecryptFile "${PWFileName}" "${DECKFILE}" "${PWFileKeySpec}" "${TEMPD}" "${PWFilePassword}"; ec=$?
+        [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+        DebugMsg 3 "password decryption ok"
+    
+	[ ! -e "${DECKFILE}" ] && retval="key file \"${DECKFILE}\"does not exist" && return 1
+	retval=$(cat ${DECKFILE})
+	return 0
+    fi
 
     # pw specified is a string
     if [ ! -e "${PWSPEC}" ]; then
@@ -46,28 +107,9 @@ sacrypt_DeterminePassword () {
     fi
 
     # pw spec designates a file
-    DebugMsg 3 "reading pw from \"${PWSPEC}\""
+    DebugMsg 3 "reading pw from \"${PWSPEC}\" (clear text)"
+    retval=$(cat ${PWSPEC})
 
-    # file contains hash of key
-    if [[ "${PWSPEC}" == *.${SA_CRYPT_ENC_EXT} ]]; then
-	DebugMsg 3 "using ${SA_CRYPT_ENC_EXT} format"
-
-        local DECKFILE=$(mktemp -p $TEMPD)
-        [ ! -e "${DECKFILE}" ] && retval="failed to create temp dec key file" && return 1
-        DebugMsg 3 "using \"${DECKFILE}\" as temp dec key file"
-
-	# decrypt the keyfile (empty keyspec)
-        sacrypt_DecryptFile "${PWSPEC}" "${DECKFILE}" "" "${TEMPD}" "${PWPW}"; ec=$?
-        [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
-        DebugMsg 3 "key decryption ok"
-    
-	[ ! -e "${DECKFILE}" ] && retval="key file \"${DECKFILE}\"does not exist" && return 1
-
-	retval=$(cat ${DECKFILE})
-    else
-	DebugMsg 3 "using clear format"
-	retval=$(cat ${PWSPEC})
-    fi
     return 0
 }
 
@@ -191,13 +233,6 @@ sacrypt_DecryptFile () {
     [ ! -e "$DECFILE" ] && retval="failed to create temp dec file" && return 1
     DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 
-##    # find the encryption key in the agent 
-#    sacrypt_FindKeyInAgent ${KEYSPEC} "${TEMPD}"; local ec=$?  
-#    [ ! $ec -eq 0 ] && return $ec
-#    local KEYINDEX=$retval
-#    local KEYHASH=$retval1
-#    DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
-
     retval=""
 
     [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
@@ -210,14 +245,6 @@ sacrypt_DecryptFile () {
 
     [ ! -e "${DECFILE}" ] && retval="decrypted file \"${DECFILE}\" not found" && return 1
 
-#    if [ "${CHKFILE}" == "" ]; then
-#        DebugMsg 1 "no checksum data available, verification skipped"
-#    else
-#        sacrypt_ComputeHashOfFile "${DECFILE}" > "${TMDFILE}"
-#        cmp -s "${CHKFILE}" "${TMDFILE}" ; ec=$?  
-#        [ ! $ec -eq 0 ] && retval="checksum verification failed ($ec)" && return $ec
-#        DebugMsg 1 "checksum verification passed"
-#    fi
     if [ "${PASSWORD}" == "" ]; then
         DebugMsg 1 "no password specified, using default"
         PASSWORD=$SA_CRYPT_AES_KEY
@@ -240,51 +267,6 @@ sacrypt_DecryptFile () {
     DebugMsg 3 "output written to file \"${OUTFILE}\""
 
     return 0
-}
-
-# encrypt a file to package
-
-sacrypt_EncryptFileToPackage () {
-
-    local INFILE=$1
-    local KEYSPEC=$2
-    local TEMPD=$3
-
-    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
-
-    local OUTFILE="${INFILE}.${SA_CRYPT_PKG_EXT}"
-
-    local PACKAGED="${TEMPD}/${INFILE}.pkg"
-    local PKGENCFILE="${PACKAGED}/${INFILE}.${SA_CRYPT_ENC_EXT}"
-    local PKGCHKFILE="${PACKAGED}/${INFILE}.${SA_CRYPT_CHK_EXT}"
-    local PKGKEYFILE="${PACKAGED}/${INFILE}.${SA_CRYPT_KEY_EXT}"
-
-    [ -e "${PACKAGED}" ] && retval="temp package directory already exists" && return 1
-    mkdir -p "${PACKAGED}"
-    [ ! -e "${PACKAGED}" ] && retval="failed to create temp package directory" && return 1
-    
-    DebugMsg 3 "using \"${PACKAGED}\" as package directory"
-
-    # encrypt the file
-    sacrypt_EncryptFile "${INFILE}" "${PKGENCFILE}" "${KEYSPEC}" "${TEMPD}"; local ec=$?; KEYHASH=$retval
-    [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
-    # create checksum file
-    sacrypt_ComputeHashOfFile "${INFILE}" > "${PKGCHKFILE}"
-    # create key file
-    echo -n "${KEYHASH}" > "${PKGKEYFILE}"
-
-    pushd "${TEMPD}" >/dev/null
-    tar cvfz "${INFILE}.pkg.tgz" "${INFILE}.pkg"/* > /dev/null; ec=$?
-    popd >/dev/null
-    [ ! $ec -eq 0 ] && retval="tar failed ($ec)" && exit $ec
-
-    cp "${TEMPD}/${INFILE}.pkg.tgz" "${OUTFILE}"
-    [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
-    chmod go-rwx "${OUTFILE}"
-
-    retval="${OUTFILE}"
-    return 0
-
 }
 
 # encrypt a file 

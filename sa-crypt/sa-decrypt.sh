@@ -12,17 +12,7 @@ source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
 
-# PASSWORD can be
-# - a string
-# - a file name
-#
-# If a file with the name $PASSWORD exists and the file is an sa-encrypted file 
-# (i.e., bearing an SA_CRYPT_ENC_EXT-extension), sa-decryption will be applied to 
-# this file (with the string $PPASSWORD as the aes password). If the file is not 
-# sa-encrypted, its contents will be used verbatim as the aes password.
-# If no such file exists the string $PASSWORD will be used as the aes password.
-
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -P PPASSWORD -d LOGGING_DEBUG_LEVEL ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -d LOGGING_DEBUG_LEVEL ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
@@ -57,12 +47,8 @@ DECFILE=$(mktemp -p $TEMPD)
 [ ! -e "$DECFILE" ] && ErrorMsg "failed to create temp dec file" && exit 1
 DebugMsg 3 "using \"$DECFILE\" as temp dec file"
 
-#TMDFILE=$(mktemp -p $TEMPD)
-#[ ! -e "$TMDFILE" ] && ErrorMsg "failed to create temp chk file" && exit 1
-#DebugMsg 3 "using \"$TMDFILE\" as temp chk file"
-
 # determine password
-sacrypt_DeterminePassword "${PASSWORD}" "${PPASSWORD}" "${TEMPD}"; ec=$?; PASSWORD=$retval
+sacrypt_DeterminePassword "${PASSWORD}" "${TEMPD}"; ec=$?; PASSWORD=$retval
 [ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
  
 #DebugMsg 1 "Password is $PASSWORD"
