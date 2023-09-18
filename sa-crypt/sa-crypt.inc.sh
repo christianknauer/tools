@@ -20,9 +20,11 @@ TEMP_NAMESPACE="."; source ${LIB_DIRECTORY}/temp.inc.sh
 SA_CRYPT_DEC_EXT="dec" # decrypted data
 SA_CRYPT_ENC_EXT="sae" # encrypted data
 SA_CRYPT_KEY_EXT="sak" # public key hash
+SA_CRYPT_AES_EXT="saa" # AES key hash
 SA_CRYPT_CHK_EXT="sac" # raw data hash
+SA_CRYPT_PKG_EXT="sat" # sae package
 
-SA_CRYPT_AES_KEY="jTx8I33DeeSuwIbwizOvXzwep7hZu8Fq4qR1eSnLgiUXPHPwnmxMPiouFi8ey0sXsap" 
+SA_CRYPT_AES_KEY="${SA_CRYPT_AES_KEY:=jTx8I33DeeSuwIbwizOvXzwep7hZu8Fq4qR1eSnLgiUXPHPwnmxMPiouFi8ey0sXsap}"
 
 # filename.${SA_CRYPT_ENC_EXT}::KEYSPEC::PASS describes an sa-encrypted
 # file filename.${SA_CRYPT_ENC_EXT} with the key specified by ${KEYSPEC} 
@@ -36,6 +38,42 @@ SA_CRYPT_AES_KEY="jTx8I33DeeSuwIbwizOvXzwep7hZu8Fq4qR1eSnLgiUXPHPwnmxMPiouFi8ey0
 # - retval=filename.${SA_CRYPT_ENC_EXT}
 # - retval1=KEYSPEC
 # - retval2=PASS
+
+sacrypt_Init () {
+
+    local InitFileSpec=$1
+
+    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
+
+    # no init file specified 
+    [ "${InitFileSpec}" == "" ] && return 0
+
+    sacrypt_ParseSAEFileSpec "${InitFileSpec}"; ec=$?
+
+    if [ $ec -eq 0 ]; then
+        local InitFileName=$retval
+	local InitFileKeySpec=$retval1
+        local InitFilePassword=$retval2
+
+	DebugMsg 3 "reading init from ${SA_CRYPT_ENC_EXT}-file \"${InitFileName}\" with keyspec \"${InitFileKeySpec}\" and password \"${InitFilePassword}\""
+
+        local INITFILE=$(mktemp -p $TEMPD)
+        [ ! -e "${INITFILE}" ] && retval="failed to create temp init file" && return 1
+        DebugMsg 3 "using \"${INITFILE}\" as temp init file"
+
+	# decrypt 
+        sacrypt_DecryptFile "${InitFileName}" "${INITFILE}" "${InitFileKeySpec}" "${TEMPD}" "${InitFilePassword}"; ec=$?
+        [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
+	DebugMsg 3 "init file decryption ok"
+    
+	[ ! -e "${INITFILE}" ] && retval="init file \"${INITFILE}\"does not exist" && return 1
+        source ${INITFILE}
+    else 
+        WarnMsg "init file specification \"${InitFileSpec}\" malformed" && return 1
+    fi
+
+    return 0
+}
 
 sacrypt_ParseSAEFileSpec () {
 
@@ -295,7 +333,7 @@ sacrypt_EncryptFile () {
     local KEYHASH=$retval1
     DebugMsg 1 "key ${KEYHASH} found in agent (#${KEYINDEX})"
 
-    retval=""
+    retval=""; retval1=""
 
     [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
 
@@ -346,6 +384,7 @@ sacrypt_EncryptFile () {
     DebugMsg 3 "encrypted data written to \"${OUTFILE}\""
 
     retval=${KEYHASH}
+    retval1=$(sacrypt_ComputeHashOfString ${PASSWORD})
     return 0
 }
 

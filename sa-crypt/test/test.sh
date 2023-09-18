@@ -6,7 +6,7 @@ export PATH=${PATH}:..
 
 set -x 
 debug="-d 3"
-debug=""
+debug="-d 1"
 
 # -----------------------------------------------------------------
 CreateTestData () {
@@ -33,17 +33,17 @@ RunTests () {
     diff ${filename} ${filename}.sae.dec
  
     # raw password file
-    sa-encrypt.sh ${debug} -i ${filename} -k ${KEYFILE} -p $(cat $passfile)
+    sa-encrypt.sh ${debug} -i ${filename} -k ${KEYFILE} -p ${passfile}
     sa-decrypt.sh ${debug} -i ${filename}.sae -p ${passfile}
     diff ${filename} ${filename}.sae.dec
 
     # sae password file
-    sa-encrypt.sh ${debug} -i ${filename} -k ${KEYFILE} -p $(cat $passfile)
+    sa-encrypt.sh ${debug} -i ${filename} -k ${KEYFILE} -p ${encpassfile}
     sa-decrypt.sh ${debug} -i ${filename}.sae -p ${encpassfile}
     diff ${filename} ${filename}.sae.dec
 
     # sae password file
-    sa-encrypt.sh ${debug} -i ${filename} -k ${KEYFILE} -p $(cat $passfile)
+    sa-encrypt.sh ${debug} -i ${filename} -k ${KEYFILE} -p ${encpassfile}:
     sa-decrypt.sh ${debug} -i ${filename}.sae -p ${encpassfile}::${keyssh}
     diff ${filename} ${filename}.sae.dec
 
@@ -77,7 +77,7 @@ sa-decrypt.sh ${debug} -i ${encpassfile}
 diff ${passfile} ${encpassfile}.dec
 
 sa-encrypt.sh ${debug} -i ${passfile} -o ${encpassfilewithpw} -k ${keyssh} -p ${passwrd}
-sa-decrypt.sh ${debug} -i ${encpassfilewithpw} -p ${passwrd}
+sa-decrypt.sh ${debug} -i ${encpassfilewithpw} -o ${encpassfilewithpw}.dec  -p ${passwrd}
 diff ${passfile} ${encpassfilewithpw}.dec
 
 # -----------------------------------------------------------------
