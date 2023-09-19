@@ -158,9 +158,12 @@ sacrypt_DeterminePassword () {
 sacrypt_AES_EncryptFile () {
     local INFILE=$1
     local PASSWORD=$2
-    #local INFILE=$1
-    #local OUTFILE=$2
-    #local PASSWORD=$3
+    local TEMP=$3
+    local FILTER=$4
+
+    # use compression by default
+    # (specify "tee" as filter to disable)
+    FILTER="${FILTER:=gzip}"
 
     retval=""
 
@@ -168,9 +171,9 @@ sacrypt_AES_EncryptFile () {
 
     local OUTFILE=$(mktemp -p $TEMPD)
     [ ! -e "${OUTFILE}" ] && retval="failed to create temp aes enc file" && return 1
-    DebugMsg 3 "using \"${OUTFILE}\" as temp aes enc file"
+    DebugMsg 3 "using \"${OUTFILE}\" as temp aes enc file (${FILTER} filter)"
 
-    cat "${INFILE}" | gzip | \
+    cat "${INFILE}" | ${FILTER} | \
 	    openssl enc -aes-256-cbc -md sha512 -a -pbkdf2 -iter 600000 -salt \
 	                -pass pass:${PASSWORD} > "${OUTFILE}" 2> /dev/null; local ec=$?
     [ ! $ec -eq 0 ] && retval="AES encryption failed ($ec)" && return $ec
@@ -183,8 +186,12 @@ sacrypt_AES_EncryptFile () {
 sacrypt_AES_DecryptFile () {
     local INFILE=$1
     local PASSWORD=$2
-    #local OUTFILE=$2
-    #local PASSWORD=$3
+    local TEMPD=$3
+    local FILTER=$4
+
+    # use compression by default 
+    # (specify "tee" as filter to disable)
+    FILTER="${FILTER:=gunzip}"
 
     retval=""
 
@@ -192,11 +199,11 @@ sacrypt_AES_DecryptFile () {
 
     local OUTFILE=$(mktemp -p $TEMPD)
     [ ! -e "${OUTFILE}" ] && retval="failed to create temp aes dec file" && return 1
-    DebugMsg 3 "using \"${OUTFILE}\" as temp aes dec file"
+    DebugMsg 3 "using \"${OUTFILE}\" as temp aes dec file (${FILTER} filter)"
 
     cat "${INFILE}" | \
 	    openssl enc -aes-256-cbc -md sha512 -a -d -pbkdf2 -iter 600000 -salt \
-	                -pass pass:${PASSWORD} 2> /dev/null | gunzip > "${OUTFILE}" 2> /dev/null; local ec=$?
+	                -pass pass:${PASSWORD} 2> /dev/null | ${FILTER} > "${OUTFILE}" 2> /dev/null; local ec=$?
     [ ! $ec -eq 0 ] && retval="AES decryption failed, check password ($ec)" && return $ec
     [ ! -e "${OUTFILE}" ] && retval="AES decryption file \"${OUTFILE}\" could not be created" && return 1
 
@@ -291,33 +298,23 @@ sacrypt_DecryptFile () {
     local KEYSPEC=$3
     local TEMPD=$4
     local PASSWORD=$5
-#    local CHKFILE=$5
+
+    PASSWORD="${PASSWORD:=${SA_CRYPT_AES_KEY}}"
 
     retval=""
 
     [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
 
-#    local DECFILEAES=$(mktemp -p $TEMPD)
-#    [ ! -e "${DECFILEAES}" ] && retval="failed to create temp aes dec file" && return 1
-#    DebugMsg 3 "using \"${DECFILEAES}\" as temp aes dec file"
-
     local DECFILE=$(mktemp -p $TEMPD)
     [ ! -e "$DECFILE" ] && retval="failed to create temp ssh dec file" && return 1
     DebugMsg 3 "using \"$DECFILE\" as temp ssh dec file"
 
-#    # decrypt with header key
-#    sacrypt_AES_DecryptFile ${INFILE} ${DECFILEAES} ${SA_CRYPT_HEADER_KEY} local ec=$?  
-#    [ ! $ec -eq 0 ] && return $ec
-#    [ ! -e "${DECFILEAES}" ] && retval="file \"${DECFILEAES}\" not found" && return 1
-#    INFILE="${DECFILEAES}" 
-
     # decrypt with header key
-    sacrypt_AES_DecryptFile ${INFILE} ${SA_CRYPT_HEADER_KEY}; local ec=$?  
+    sacrypt_AES_DecryptFile ${INFILE} ${SA_CRYPT_HEADER_KEY} ${TEMPD}; local ec=$?  
     [ ! $ec -eq 0 ] && return $ec
     #INFILE="${retval}" 
 
     # decrypt with agent
-    #[ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
     #cat "${INFILE}" | ${DECRYPT} > "${DECFILE}"; ec=$?  
     cat "${retval}" | ${DECRYPT} > "${DECFILE}"; ec=$?  
     case $ec in
@@ -328,25 +325,11 @@ sacrypt_DecryptFile () {
 
     [ ! -e "${DECFILE}" ] && retval="ssh decrypted file \"${DECFILE}\" not found" && return 1
 
-    if [ "${PASSWORD}" == "" ]; then
-        DebugMsg 1 "no aes password specified, using default"
-        PASSWORD=${SA_CRYPT_AES_KEY}
-    fi
-    DebugMsg 1 "aes decryption"
-
-#    # decrypt with password
-#    sacrypt_AES_DecryptFile ${DECFILE} ${DECFILEAES} ${PASSWORD}; local ec=$?  
-#    [ ! $ec -eq 0 ] && return $ec
-#
-#    [ ! -e "${DECFILEAES}" ] && retval="file \"aes decrypted ${DECFILEAES}\" not found" && return 1
-#    DECFILE="${DECFILEAES}" 
-
     # decrypt with password
-    sacrypt_AES_DecryptFile ${DECFILE} ${PASSWORD}; local ec=$?  
+    sacrypt_AES_DecryptFile ${DECFILE} ${PASSWORD} ${TEMPD}; local ec=$?  
     [ ! $ec -eq 0 ] && return $ec
-    #DECFILE="${retval}" 
 
-    #cp "${DECFILE}" "${OUTFILE}"
+    # copy to output
     cp "${retval}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
@@ -365,6 +348,9 @@ sacrypt_EncryptFile () {
     local TEMPD=$4
     local PASSWORD=$5
 
+    PASSWORD="${PASSWORD:=${SA_CRYPT_AES_KEY}}"
+
+    [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
     [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
 
     local VERFILE=$(mktemp -p $TEMPD)
@@ -383,29 +369,13 @@ sacrypt_EncryptFile () {
 
     retval=""; retval1=""
 
-    [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
-
-    if [ "${PASSWORD}" == "" ]; then
-        DebugMsg 1 "no password specified, using default"
-        PASSWORD=${SA_CRYPT_AES_KEY}
-    fi
-    DebugMsg 1 "aes encryption"
-
-#    local INFILEAES=$(mktemp -p $TEMPD)
-#    [ ! -e "${INFILEAES}" ] && retval="failed to create temp aes file" && return 1
-#    DebugMsg 3 "using \"${INFILEAES}\" as temp aes file"
-
-#    sacrypt_AES_EncryptFile ${INFILE} ${INFILEAES} ${PASSWORD}; local ec=$?  
-#    [ ! $ec -eq 0 ] && return $ec
-    sacrypt_AES_EncryptFile ${INFILE} ${PASSWORD}; local ec=$?  
+    # encrypt with password
+    sacrypt_AES_EncryptFile ${INFILE} ${PASSWORD} ${TEMPD}; local ec=$?  
     [ ! $ec -eq 0 ] && return $ec
-
-#    [ ! -e "${INFILEAES}" ] && retval="file \"${INFILEAES}\" not found" && return 1
     INFILE="${retval}" 
 
     # encrypt with all keys in agent
     cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}"; ec=$?  
-
     [ ! $ec -eq 0 ] && retval="encryption failed ($ec)" && return $ec
 
     # split encrypted file line by line
@@ -429,18 +399,18 @@ sacrypt_EncryptFile () {
     esac
 
     # encrypt with header key
-    sacrypt_AES_EncryptFile ${ANSWER} ${SA_CRYPT_HEADER_KEY}; local ec=$?  
+    sacrypt_AES_EncryptFile ${ANSWER} ${SA_CRYPT_HEADER_KEY} ${TEMPD}; local ec=$?  
     [ ! $ec -eq 0 ] && return $ec
 
-   # create output
-    #cp "${ANSWER}" "${OUTFILE}"
+    # create output
     cp "${retval}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
+
     chmod go-rwx "${OUTFILE}"
+
     DebugMsg 3 "encrypted data written to \"${OUTFILE}\""
 
     retval=${KEYHASH}
-    #retval1=$(sacrypt_ComputeHashOfString ${PASSWORD})
     return 0
 }
 
