@@ -38,7 +38,7 @@ DebugMsg 1 "Default AES key hash is ${SA_CRYPT_AES_KEY_HASH}"
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${OUTFILE}" == "" ] && OUTFILE="$INFILE.${SA_CRYPT_ENC_EXT}"
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${CHKFILE}" == "" ] && CHKFILE="$INFILE.${SA_CRYPT_CHK_EXT}"
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${PKHFILE}" == "" ] && PKHFILE="$INFILE.${SA_CRYPT_KEY_EXT}"
-[ ! "${INFILE}" == "/dev/stdin" ] && [ "${AESHFILE}" == "" ] && AESHFILE="$INFILE.${SA_CRYPT_AES_EXT}"
+#[ ! "${INFILE}" == "/dev/stdin" ] && [ "${AESHFILE}" == "" ] && AESHFILE="$INFILE.${SA_CRYPT_AES_EXT}"
 [ ! "${INFILE}" == "/dev/stdin" ] && [ "${PKGFILE}" == "" ] && PKGFILE="$INFILE.${SA_CRYPT_PKG_EXT}"
 [ "${CHKFILE}" == "" ] && CHKFILE="message.${SA_CRYPT_CHK_EXT}"
 [ "${PKHFILE}" == "" ] && PKHFILE="message.${SA_CRYPT_KEY_EXT}"
@@ -48,7 +48,7 @@ DebugMsg 3 "reading raw data from \"$INFILE\""
 DebugMsg 3 "writing encrypted data to \"$OUTFILE\""
 DebugMsg 3 "writing checksum to \"$CHKFILE\""
 DebugMsg 3 "writing public key hash to \"$PKHFILE\""
-DebugMsg 3 "writing aes hash to \"$AESHFILE\""
+#DebugMsg 3 "writing aes hash to \"$AESHFILE\""
 DebugMsg 3 "writing package to \"$PKGFILE\""
 
 # create temp files
@@ -74,7 +74,7 @@ sacrypt_DetermineKeyHash "${PUBKEYFILE}"; ec=$?; KEYSPEC=$retval
 cat "${INFILE}" > "${RAWFILE}"
 
 # encrypt the file
-sacrypt_EncryptFile "${RAWFILE}" "${ENCFILE}" "${KEYSPEC}" "${TEMPD}" "${PASSWORD}"; ec=$?; KEYHASH=$retval; AESHASH=$retval1
+sacrypt_EncryptFile "${RAWFILE}" "${ENCFILE}" "${KEYSPEC}" "${TEMPD}" "${PASSWORD}"; ec=$?; KEYHASH=$retval
 [ ! $ec -eq 0 ] && ErrorMsg "$retval" && exit $ec
 
 DebugMsg 1 "encryption ok"
@@ -97,14 +97,14 @@ echo -n "${KEYHASH}" > "${PKHFILE}"
 DebugMsg 1 "key hash written to \"${PKHFILE}\""
 
 # create key file
-echo -n "${AESHASH}" > "${AESHFILE}"
-DebugMsg 1 "aes hash written to \"${AESHFILE}\""
+#echo -n "${AESHASH}" > "${AESHFILE}"
+#DebugMsg 1 "aes hash written to \"${AESHFILE}\""
 
 # create package file
-SA_CRYPT_PKG_SIGNATURE="f0hOgBYHER8fyninUB81ebdg9CNkjXFKVqBxVFq3JuqhLSRrcT8tqt3aBYlD4GQL"
-echo $SA_CRYPT_PKG_SIGNATURE > package-signature.sam
-tar cvfz "${PKGFILE}" package-signature.sam "${OUTFILE}" "${CHKFILE}" "${PKHFILE}" "${AESHFILE}" >/dev/null
-DebugMsg 1 "sae package written to \"${PKGFILE}\""
+#SA_CRYPT_PKG_SIGNATURE="sae:$(sacrypt_ComputeHashOfString ${SA_CRYPT_HEADER_KEY})"
+#echo $SA_CRYPT_PKG_SIGNATURE > package-signature.sam
+#tar cvfz "${PKGFILE}" package-signature.sam "${OUTFILE}" "${CHKFILE}" "${PKHFILE}"  >/dev/null
+#DebugMsg 1 "sae package written to \"${PKGFILE}\""
 
 exit 0
 

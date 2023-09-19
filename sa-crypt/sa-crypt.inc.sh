@@ -25,6 +25,7 @@ SA_CRYPT_CHK_EXT="sac" # raw data hash
 SA_CRYPT_PKG_EXT="sat" # sae package
 
 SA_CRYPT_AES_KEY="${SA_CRYPT_AES_KEY:=jTx8I33DeeSuwIbwizOvXzwep7hZu8Fq4qR1eSnLgiUXPHPwnmxMPiouFi8ey0sXsap}"
+SA_CRYPT_HEADER_KEY="${SA_CRYPT_HEADER_KEY:=JktNcY8VuYDseLDaOKfd7hhMKuCuKsfbX20NLcxPAkbofCmTEu69cVAy2JUtkYba}"
 
 # filename.${SA_CRYPT_ENC_EXT}::KEYSPEC::PASS describes an sa-encrypted
 # file filename.${SA_CRYPT_ENC_EXT} with the key specified by ${KEYSPEC} 
@@ -114,6 +115,8 @@ sacrypt_DeterminePassword () {
     # no pw specified 
     [ "${PWSPEC}" == "" ] && return 0
 
+    DebugMsg 1 "parsing pw spec"
+
     sacrypt_ParseSAEFileSpec "${PWSPEC}"; ec=$?
 
     if [ $ec -eq 0 ]; then
@@ -154,25 +157,50 @@ sacrypt_DeterminePassword () {
 
 sacrypt_AES_EncryptFile () {
     local INFILE=$1
-    local OUTFILE=$2
-    local PASSWORD=$3
+    local PASSWORD=$2
+    #local INFILE=$1
+    #local OUTFILE=$2
+    #local PASSWORD=$3
+
     retval=""
+
+    [ ! -e "${INFILE}" ] && retval="input \"${INFILE}\" file does not exist" && return 1
+
+    local OUTFILE=$(mktemp -p $TEMPD)
+    [ ! -e "${OUTFILE}" ] && retval="failed to create temp aes enc file" && return 1
+    DebugMsg 3 "using \"${OUTFILE}\" as temp aes enc file"
+
     cat "${INFILE}" | gzip | \
 	    openssl enc -aes-256-cbc -md sha512 -a -pbkdf2 -iter 600000 -salt \
 	                -pass pass:${PASSWORD} > "${OUTFILE}" 2> /dev/null; local ec=$?
     [ ! $ec -eq 0 ] && retval="AES encryption failed ($ec)" && return $ec
+    [ ! -e "${OUTFILE}" ] && retval="AES encryption file \"${OUTFILE}\" could not be created" && return 1
+
+    retval="${OUTFILE}"
     return 0
 }
 
 sacrypt_AES_DecryptFile () {
     local INFILE=$1
-    local OUTFILE=$2
-    local PASSWORD=$3
+    local PASSWORD=$2
+    #local OUTFILE=$2
+    #local PASSWORD=$3
+
     retval=""
+
+    [ ! -e "${INFILE}" ] && retval="input file does not exist" && return 1
+
+    local OUTFILE=$(mktemp -p $TEMPD)
+    [ ! -e "${OUTFILE}" ] && retval="failed to create temp aes dec file" && return 1
+    DebugMsg 3 "using \"${OUTFILE}\" as temp aes dec file"
+
     cat "${INFILE}" | \
 	    openssl enc -aes-256-cbc -md sha512 -a -d -pbkdf2 -iter 600000 -salt \
 	                -pass pass:${PASSWORD} 2> /dev/null | gunzip > "${OUTFILE}" 2> /dev/null; local ec=$?
     [ ! $ec -eq 0 ] && retval="AES decryption failed, check password ($ec)" && return $ec
+    [ ! -e "${OUTFILE}" ] && retval="AES decryption file \"${OUTFILE}\" could not be created" && return 1
+
+    retval="${OUTFILE}"
     return 0
 }
 
@@ -265,41 +293,61 @@ sacrypt_DecryptFile () {
     local PASSWORD=$5
 #    local CHKFILE=$5
 
-    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
-
-    local DECFILE=$(mktemp -p $TEMPD)
-    [ ! -e "$DECFILE" ] && retval="failed to create temp dec file" && return 1
-    DebugMsg 3 "using \"$DECFILE\" as temp dec file"
-
     retval=""
 
-    [ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
-    cat "${INFILE}" | ${DECRYPT} > "${DECFILE}"; ec=$?  
+    [ ! -d "${TEMPD}" ] && retval="temp dir \"${TEMPD}\" not found" && return 1
+
+#    local DECFILEAES=$(mktemp -p $TEMPD)
+#    [ ! -e "${DECFILEAES}" ] && retval="failed to create temp aes dec file" && return 1
+#    DebugMsg 3 "using \"${DECFILEAES}\" as temp aes dec file"
+
+    local DECFILE=$(mktemp -p $TEMPD)
+    [ ! -e "$DECFILE" ] && retval="failed to create temp ssh dec file" && return 1
+    DebugMsg 3 "using \"$DECFILE\" as temp ssh dec file"
+
+#    # decrypt with header key
+#    sacrypt_AES_DecryptFile ${INFILE} ${DECFILEAES} ${SA_CRYPT_HEADER_KEY} local ec=$?  
+#    [ ! $ec -eq 0 ] && return $ec
+#    [ ! -e "${DECFILEAES}" ] && retval="file \"${DECFILEAES}\" not found" && return 1
+#    INFILE="${DECFILEAES}" 
+
+    # decrypt with header key
+    sacrypt_AES_DecryptFile ${INFILE} ${SA_CRYPT_HEADER_KEY}; local ec=$?  
+    [ ! $ec -eq 0 ] && return $ec
+    #INFILE="${retval}" 
+
+    # decrypt with agent
+    #[ ! -e "${INFILE}" ] && retval="input file \"${INFILE}\" not found" && return 1
+    #cat "${INFILE}" | ${DECRYPT} > "${DECFILE}"; ec=$?  
+    cat "${retval}" | ${DECRYPT} > "${DECFILE}"; ec=$?  
     case $ec in
-        0) DebugMsg 1 "decryption successful";;
-        1) retval="decryption failed (key not in agent? input not an sae file?)"; return 1;;
-        *) retval="decrypt gives unknown exit code ($ec)"; return $ec;;
+        0) DebugMsg 1 "ssh decryption successful";;
+        1) retval="ssh decryption failed (key not in agent? input not an sae file?)"; return 1;;
+        *) retval="ssh decryption gives unknown exit code ($ec)"; return $ec;;
     esac
 
-    [ ! -e "${DECFILE}" ] && retval="decrypted file \"${DECFILE}\" not found" && return 1
+    [ ! -e "${DECFILE}" ] && retval="ssh decrypted file \"${DECFILE}\" not found" && return 1
 
     if [ "${PASSWORD}" == "" ]; then
-        DebugMsg 1 "no password specified, using default"
-        PASSWORD=$SA_CRYPT_AES_KEY
+        DebugMsg 1 "no aes password specified, using default"
+        PASSWORD=${SA_CRYPT_AES_KEY}
     fi
     DebugMsg 1 "aes decryption"
 
-    local DECFILEAES=$(mktemp -p $TEMPD)
-    [ ! -e "${DECFILEAES}" ] && retval="failed to create temp aes file" && return 1
-    DebugMsg 3 "using \"${DECFILEAES}\" as temp aes file"
+#    # decrypt with password
+#    sacrypt_AES_DecryptFile ${DECFILE} ${DECFILEAES} ${PASSWORD}; local ec=$?  
+#    [ ! $ec -eq 0 ] && return $ec
+#
+#    [ ! -e "${DECFILEAES}" ] && retval="file \"aes decrypted ${DECFILEAES}\" not found" && return 1
+#    DECFILE="${DECFILEAES}" 
 
-    sacrypt_AES_DecryptFile ${DECFILE} ${DECFILEAES} ${PASSWORD}; local ec=$?  
+    # decrypt with password
+    sacrypt_AES_DecryptFile ${DECFILE} ${PASSWORD}; local ec=$?  
     [ ! $ec -eq 0 ] && return $ec
+    #DECFILE="${retval}" 
 
-    [ ! -e "${DECFILEAES}" ] && retval="file \"${DECFILEAES}\" not found" && return 1
-    DECFILE="${DECFILEAES}" 
-
-    cp "${DECFILE}" "${OUTFILE}"
+    #cp "${DECFILE}" "${OUTFILE}"
+    cp "${retval}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
     DebugMsg 3 "output written to file \"${OUTFILE}\""
@@ -339,22 +387,25 @@ sacrypt_EncryptFile () {
 
     if [ "${PASSWORD}" == "" ]; then
         DebugMsg 1 "no password specified, using default"
-        PASSWORD=$SA_CRYPT_AES_KEY
+        PASSWORD=${SA_CRYPT_AES_KEY}
     fi
     DebugMsg 1 "aes encryption"
 
-    local INFILEAES=$(mktemp -p $TEMPD)
-    [ ! -e "${INFILEAES}" ] && retval="failed to create temp aes file" && return 1
-    DebugMsg 3 "using \"${INFILEAES}\" as temp aes file"
+#    local INFILEAES=$(mktemp -p $TEMPD)
+#    [ ! -e "${INFILEAES}" ] && retval="failed to create temp aes file" && return 1
+#    DebugMsg 3 "using \"${INFILEAES}\" as temp aes file"
 
-    sacrypt_AES_EncryptFile ${INFILE} ${INFILEAES} ${PASSWORD}; local ec=$?  
+#    sacrypt_AES_EncryptFile ${INFILE} ${INFILEAES} ${PASSWORD}; local ec=$?  
+#    [ ! $ec -eq 0 ] && return $ec
+    sacrypt_AES_EncryptFile ${INFILE} ${PASSWORD}; local ec=$?  
     [ ! $ec -eq 0 ] && return $ec
 
-    [ ! -e "${INFILEAES}" ] && retval="file \"${INFILEAES}\" not found" && return 1
-    INFILE="${INFILEAES}" 
+#    [ ! -e "${INFILEAES}" ] && retval="file \"${INFILEAES}\" not found" && return 1
+    INFILE="${retval}" 
 
     # encrypt with all keys in agent
     cat "${INFILE}" | ${ENCRYPT} > "${ENCFILE}"; ec=$?  
+
     [ ! $ec -eq 0 ] && retval="encryption failed ($ec)" && return $ec
 
     # split encrypted file line by line
@@ -377,14 +428,19 @@ sacrypt_EncryptFile () {
 	*) retval="verification failed ($ec)" && return $ec;;
     esac
 
+    # encrypt with header key
+    sacrypt_AES_EncryptFile ${ANSWER} ${SA_CRYPT_HEADER_KEY}; local ec=$?  
+    [ ! $ec -eq 0 ] && return $ec
+
    # create output
-    cp "${ANSWER}" "${OUTFILE}"
+    #cp "${ANSWER}" "${OUTFILE}"
+    cp "${retval}" "${OUTFILE}"
     [ ! -e "${OUTFILE}" ] && retval="failed to create output file \"${OUTFILE}\"" && return 1
     chmod go-rwx "${OUTFILE}"
     DebugMsg 3 "encrypted data written to \"${OUTFILE}\""
 
     retval=${KEYHASH}
-    retval1=$(sacrypt_ComputeHashOfString ${PASSWORD})
+    #retval1=$(sacrypt_ComputeHashOfString ${PASSWORD})
     return 0
 }
 
