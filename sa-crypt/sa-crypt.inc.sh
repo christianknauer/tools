@@ -427,7 +427,7 @@ sacrypt_FindKeyInAgent () {
     local KEYFILE=$(mktemp -p $TEMPD)
     [ ! -e "$KEYFILE" ] && retval="failed to create temp key file" && return 1
     DebugMsg 3 "using \"$KEYFILE\" as temp key file"
- 
+
     ssh-add -L > ${KEYFILE} 2> /dev/null; local ec=$? 
 
     local NROFKEYS=$(cat ${KEYFILE} | wc -l)
