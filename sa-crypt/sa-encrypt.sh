@@ -11,7 +11,7 @@ script_directory=${script_path_in_package%/*}
 source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -I INITFILE -d LOGGING_DEBUG_LEVEL ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -I INITFILE -d LOGGING_DEBUG_LEVEL -L LOGGING_LOGFILE ]"
 Options.ParseOptions "${USAGE}" ${@}
 
 DebugLoggingConfig 9
