@@ -5,14 +5,30 @@
 
 # initialize library
 SA_CRYPT_MODULE_DIR=$(dirname "$BASH_SOURCE")
+
 LIB_DIRECTORY="${SA_CRYPT_MODULE_DIR}/../lib/bash"
+LIB_DIRECTORY=$(readlink -f -- "${LIB_DIRECTORY}")
+[ ! -e "${LIB_DIRECTORY}" ] && echo "$0 (sa-crypt lib) ERROR: lib directory \"${LIB_DIRECTORY}\" does not exist" && exit 1
 
 # load logging module (use global namespace)
-LOGGING_NAMESPACE="."; source ${LIB_DIRECTORY}/logging.inc.sh
+LOGGING_LIB_DIRECTORY="${LIB_DIRECTORY}/logging"
+[ ! -e "${LOGGING_LIB_DIRECTORY}" ] && echo "$0: ERROR: logging lib directory \"${LOGGING_LIB_DIRECTORY}\" does not exist" && exit 1
+LOGGING_NAMESPACE="." source "${LOGGING_LIB_DIRECTORY}/logging.sh"; ec=$?
+[ ! $ec -eq 0 ] &&  echo "$0: ERROR: failed to initialize logging lib" && exit $ec
+
 # load options module (use default namespace "Options.")
-source ${LIB_DIRECTORY}/options.inc.sh
+source "${LIB_DIRECTORY}/options.sh"
+
 # load temp module (use global namespace)
-TEMP_NAMESPACE="."; source ${LIB_DIRECTORY}/temp.inc.sh
+TEMP_NAMESPACE="."; source "${LIB_DIRECTORY}/temp.sh"
+
+
+## load logging module (use global namespace)
+#LOGGING_NAMESPACE="."; source ${LIB_DIRECTORY}/logging.inc.sh
+## load options module (use default namespace "Options.")
+#source ${LIB_DIRECTORY}/options.inc.sh
+## load temp module (use global namespace)
+#TEMP_NAMESPACE="."; source ${LIB_DIRECTORY}/temp.inc.sh
 
 # constants
 

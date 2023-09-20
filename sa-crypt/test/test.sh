@@ -6,7 +6,7 @@ export PATH=${PATH}:..
 
 set -x 
 debug="-d 3"
-#debug=""
+debug=""
 
 # -----------------------------------------------------------------
 CreateTestData () {
