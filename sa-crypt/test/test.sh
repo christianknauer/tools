@@ -7,6 +7,7 @@ export PATH=${PATH}:..
 set -x 
 debug="-d 3"
 logfile="-L test.log"
+export LOGGING_TIMESTAMP=echo
 #debug=""
 
 # -----------------------------------------------------------------
