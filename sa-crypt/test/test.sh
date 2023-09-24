@@ -8,6 +8,7 @@ set -x
 debug="-d 3"
 logfile="-L test.log"
 export LOGGING_TIMESTAMP=echo
+#export CORE_DEBUG=1
 #debug=""
 
 # -----------------------------------------------------------------
