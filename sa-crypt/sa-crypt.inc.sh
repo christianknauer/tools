@@ -19,10 +19,6 @@ LOGGING_NAMESPACE="." source "${LOGGING_LIB_DIRECTORY}/logging.sh"; ec=$?
 # load options module (use default namespace "Options.")
 source "${LIB_DIRECTORY}/options.sh"
 
-# load temp module (use global namespace)
-TEMP_NAMESPACE="."; source "${LIB_DIRECTORY}/temp.sh"
-
-
 ## load logging module (use global namespace)
 #LOGGING_NAMESPACE="."; source ${LIB_DIRECTORY}/logging.inc.sh
 ## load options module (use default namespace "Options.")

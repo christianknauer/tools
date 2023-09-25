@@ -5,7 +5,7 @@ export PATH=${PATH}:..
 # -----------------------------------------------------------------
 
 set -x 
-debug="-d 3"
+debug="-d 3 -D 1"
 logfile="-L test.log"
 export LOGGING_TIMESTAMP=echo
 #export CORE_DEBUG=1

@@ -12,8 +12,10 @@ source "${script_directory}/sa-crypt.inc.sh"
 
 # handle command options
 
-USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -I INITFILE -d LOGGING_DEBUG_LEVEL -L LOGGING_LOGFILE ]"
+USAGE="[-i INFILE -o OUTFILE -k PUBKEYFILE -c CHKFILE -p PASSWORD -I INITFILE -d LOGGING_DEBUG_LEVEL -L LOGGING_LOGFILE  -D CORE_DEBUG]"
 Options.ParseOptions "${USAGE}" ${@}
+# log library errors to app log file
+CORE_LOGFILE="${LOGGING_LOGFILE}"
 
 DebugLoggingConfig 9
 
@@ -21,8 +23,8 @@ DebugLoggingConfig 9
 sacrypt_CheckBinaries
 
 # create temporary directory
-CreateTempDir; ec=$?; TEMPD=$retval
-[ ! $ec -eq 0 ] &&  ErrorMsg "$retval" && exit $ec
+__Core_CreateTempDir; ec=$?; TEMPD=$retval
+[ ! $ec -eq 0 ] &&  ErrorMsg "$errval" && exit $ec
 
 DebugMsg 1 "created temporary directory \"${TEMPD}\""
 
