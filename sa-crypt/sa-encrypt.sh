@@ -22,7 +22,8 @@ DebugLoggingConfig 9
 sacrypt_CheckBinaries
 
 # create temporary directory
-__Core_CreateTempDir; ec=$?; TEMPD=$retval
+__Core_CreateEncryptedTempDir; ec=$?; TEMPD=$retval
+#__Core_CreateTempDir; ec=$?; TEMPD=$retval
 [ ! $ec -eq 0 ] &&  ErrorMsg "$errval" && exit $ec
 
 DebugMsg 1 "created temporary directory \"${TEMPD}\""
