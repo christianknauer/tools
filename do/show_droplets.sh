@@ -8,8 +8,6 @@ source lib.inc.sh
 LOGGING_NAMESPACE="."
 source ${LIB_DIRECTORY}/logging.inc.sh
 #LOGGING_DEBUG_LEVEL=3
-ParseLoggingOptions ${@}
-DebugLoggingConfig 2
 
 source token.inc.sh
 
