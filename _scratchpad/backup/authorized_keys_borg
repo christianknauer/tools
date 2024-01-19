@@ -1,0 +1,8 @@
+# borg for user sub2
+#
+# full access key for all repos (hsb-sub2)
+# --append-only can can be added as a switch
+restrict,command="borg serve",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMcM7KY7ashZEP4YxOxNS4fY4exN3qP4vDiZxdIR8iu/
+#
+# append-only key for repo1 (hsb-borg-ao-repo1)
+restrict,command="borg serve --append-only --restrict-to-path ./repo1",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIwLvMpdoJywmamPTK7L7f06Y4b0u+VTflOEYYWyZe9K

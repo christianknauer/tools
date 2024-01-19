@@ -1,0 +1,9 @@
+# restic for user sub1
+#
+# full access key for all repos (hsb-restic)
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMcM7KY7ashZEP4YxOxNS4fY4exN3qP4vDiZxdIR8iu/
+#
+# append-only key for repo1 (hsb-restic-ao-repo1)
+restrict,command="rclone serve restic --stdio --config=/dev/null --append-only --verbose ./repo1",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIwLvMpdoJywmamPTK7L7f06Y4b0u+VTflOEYYWyZe9K
+#
+# EOF
