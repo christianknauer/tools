@@ -16,8 +16,4 @@ do
     echo $(ph show @credentials/gpg/${Email} --field password) | ${GPPCMD} --preset ${keygrip}
 done
 
-#echo $(ph show @credentials/gpg/${Email} --field password) | sed 's/.$//' | ${GPPCMD} --preset $(ph show @credentials/gpg/${Email} --field keygrip)
-
-gpg-connect-agent 'keyinfo --list' /bye
-
 # EOF
