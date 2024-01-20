@@ -49,3 +49,14 @@ multisubstitute
        importas -ui cwd _cwd
      }
 ```
+
+## Positional parameters
+
+Whenever we only have to substitute the positional parameters, and don't need to go 
+through the whole `elgetpositionals` and `emptyenv` chain we use the `-S` option of `execlineb`.
+Specifically, from most efficient (but less flexible) to least efficient (but more flexible) [see](https://skarnet.org/software/execline/el_pushenv.html), we
+
+- use `execlineb -P` if wo don't need positional parameters at all,
+- use `execlineb -Sn` if we need only simple positional parameter substitution,
+- use `execlineb -p`, then elgetpositionals if we don't mind overwriting the current stack of positional parameters, and
+- use `execlineb`, then `elgetpositionals`, then `emptyenv -P` if we need the full power of positional parameter handling.
