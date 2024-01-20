@@ -3,10 +3,6 @@
 # file: "init.e"
 
 # create a private repo on github.com from the current dir
-# - basename of cwd is the repository name 
-# - initialize .gitattributes (transcrypt)
-# - initialize .gitignore
-# - initialize README.md
 
 # set env vars (does not require substitutions)
 getcwd _fcwd 
@@ -26,21 +22,6 @@ multisubstitute {
   importas -ui script _script
 }
 
-# create envs
-# whiptail color scheme
-export NEWT_COLORS "
-root=brightblue,brightblue
-shadow=brightblue,brightblue
-title=brightcyan,white
-window=white,brightmagenta
-border=white,brightgreen
-textbox=black,black
-listbox=brightgreen,white
-actlistbox=white,brightgreen
-actsellistbox=white,brightgreen
-button=black,white
-compactbutton=magenta,brightmagenta"
- 
 # set new env vars & auto-substitute (2. substitution)
 backtick -E cwd { basename ${fcwd} }
 
@@ -115,15 +96,15 @@ ifelse { test -d .git } {
 }
 
 # get confirmation from user
-ifelse -n { whiptail --title "${script} - create github.com repo" --yesno "Proceed with creation of repo ${cwd}?" --yes-button "yes" --no-button "no" 0 0 } {
-  $fg { echo $ERROR "user abort" } exit 2 
+ifelse -n { whiptail --title "${script} - create github.com repo" 
+                     --yesno "Proceed with creation of repo ${cwd}\nfrom ${fcwd}?" 
+		     --yes-button "yes" --no-button "no" 0 0 } {
+  $fg { echo $ERROR "user requested abort" } exit 2 
 }
 
-## $fg { 
-#backtick -E yesno { fdmove -c 3 2 fdmove -c 2 1 fdmove -c 1 3
-#    whiptail --title "Ja/Nein-Abfrage" --yesno "Really?" 0 0 }
-
-$fg { echo $INFO "creating repo ${cwd} in ${fcwd}" }
+#$fg { echo $INFO "creating repo ${cwd} in ${fcwd}" }
+#$fg { whiptail --title "${script} - create github.com repo" 
+#               --msgbox "Repo ${cwd} in ${fcwd}\nwill be created." 0 0 } 
 
 # do the work
 $fg { mkdir "__secrets" }
@@ -138,10 +119,10 @@ $fg { git commit -m "repository initialized (${script})" }
 $fg { pipeline { ph show @credentials/github.io/tokens/gh --field password }
                  gh auth login --hostname github.com --with-token }
 $fg { gh config set -h github.com git_protocol ssh }
-$fg { gh auth status }
 $fg { gh repo create ${cwd} --private --source=. --remote=upstream }
 $fg { git push --set-upstream upstream master }
-$fg { transcrypt --display }
+$fg { transcrypt -d }
+# clean up
 emptyenv -oP
 gh auth logout
 
