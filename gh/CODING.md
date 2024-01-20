@@ -8,11 +8,10 @@ We use some "prepocessor" definitions/substitutions to abbreviate some execline 
 The following code is used very early (after env manipulating commands, such as `getcwd`:
 
 ```bash
-multisubstitute
-     {
-       multidefine -d : "foreground:background:pipeline:backtick" { fg bg pipe bt }
-       ...
-     }
+multisubstitute {
+  multidefine -d : "foreground:background" { fg bg }
+  ...
+}
 ```
 
 ## Variable names
@@ -36,18 +35,16 @@ We try to minimize (costly) substitutions by collecting them  in (few) `multisub
 ```bash
 getcwd _fcwd 
 
-multisubstitute
-     {
-       multidefine -d : "foreground:background:pipeline:backtick" { fg bg pipe bt }
-       importas -ui fcwd _fcwd
-     }
+multisubstitute {
+  multidefine -d : "foreground:background" { fg bg }
+  importas -ui fcwd _fcwd
+}
 
-$bt _cwd    { basename ${fcwd} }
+backtick { basename ${fcwd} }
 
-multisubstitute
-     {
-       importas -ui cwd _cwd
-     }
+multisubstitute {
+  importas -ui cwd _cwd
+}
 ```
 
 ## Positional parameters

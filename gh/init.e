@@ -14,16 +14,33 @@ backtick _script { basename ${0} }
 
 # 1. substitution round
 # - "prepocessor" definitions/substitutions to abbreviate some execline commands
-# - text color definitions
+# - color definitions
 # - perform substitutions to get env vars substituted 
  
 multisubstitute {
- multidefine -d : "foreground:background:pipeline:backtick" { fg bg pipe bt }
- multidefine -d : "\033[1;34m:\033[0;37m:\033[1;31m:\033[1m:\033[0m" { BLUE WHITE RED BOLD OFF }
- importas -ui fcwd _fcwd
- importas -ui script _script
+  multidefine -d : "foreground:background:pipeline:backtick" { fg bg pipe bt }
+  #
+  multidefine -d : "\033[1;34m:\033[0;37m:\033[1;31m:\033[1m:\033[0m" { BLUE WHITE RED BOLD OFF }
+  #
+  importas -ui fcwd _fcwd
+  importas -ui script _script
 }
 
+# create envs
+# whiptail color scheme
+export NEWT_COLORS "
+root=brightblue,brightblue
+shadow=brightblue,brightblue
+title=brightcyan,white
+window=white,brightmagenta
+border=white,brightgreen
+textbox=black,black
+listbox=brightgreen,white
+actlistbox=white,brightgreen
+actsellistbox=white,brightgreen
+button=black,white
+compactbutton=magenta,brightmagenta"
+ 
 # set new env vars & auto-substitute (2. substitution)
 backtick -E cwd { basename ${fcwd} }
 
@@ -96,7 +113,17 @@ ifelse { test $# -gt 0 } {
 ifelse { test -d .git } {
   $fg { echo $ERROR ".git directory already exits" } exit 1 
 }
-$fg { echo $INFO "creating repo ${cwd} in ${fcwd}" } 
+
+# get confirmation from user
+ifelse -n { whiptail --title "${script} - create github.com repo" --yesno "Proceed with creation of repo ${cwd}?" --yes-button "yes" --no-button "no" 0 0 } {
+  $fg { echo $ERROR "user abort" } exit 2 
+}
+
+## $fg { 
+#backtick -E yesno { fdmove -c 3 2 fdmove -c 2 1 fdmove -c 1 3
+#    whiptail --title "Ja/Nein-Abfrage" --yesno "Really?" 0 0 }
+
+$fg { echo $INFO "creating repo ${cwd} in ${fcwd}" }
 
 # do the work
 $fg { mkdir "__secrets" }
