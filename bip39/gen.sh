@@ -2,6 +2,31 @@
 
 source bip39.sh
 
+DBNAME="keys"
+DBFILE="${DBNAME}.kdbx"
+
+addKdbxEntry() {
+  local database="$1"
+  local name="$2"
+  local password="$3"
+  local user="$4"
+  local URL="$5"
+  local mnemonic="$6"
+  local hint="$7"
+
+  cat <<EOF | ph --no-password --no-cache --database ${database} add --fields notes,mnemonic,hint ${name} 1> /dev/null
+${user}
+${password}
+${password}
+${URL}
+${mnemonic}
+${mnemonic}
+${hint}
+EOF
+  #ph --no-password --no-cache --database ${database} show ${name}
+}
+
+
 usage() { 
   local SCRIPT=$(basename $0)
   local BOLD="\033[1m"
@@ -19,23 +44,30 @@ read -r -d '' USAGE <<EOF
   In seed verification mode (-v) an existing mnemonic is read from a file (see -m). The corresponding seed is then created (using the seed password specified) and compared against the seed in "name.sd".
 
   Notes:
-  	- A seed password is not required for seed creation.
-	- The default entropy for mnemonic creation is 256 bits.
+        - A seed password is not required for seed creation.
+        - The default entropy for mnemonic creation is 256 bits.
         - THE SEED PASSWORD CANNOT BE RECONSTRUCTED FROM THE SEED.
 
   Arguments:
 	name (${BOLD}required${OFF}): name of the project (used as the stem of the output files)
 
   Options:
-  	-h: show this help
-	-f: force overwriting of existing output files
 	-v: enable verification mode (requires -m)
-	-t: read the password for seed creation from the terminal
+	-f: force overwriting of existing output files
+
 	-e <128|160|192|224|256>: specify the entropy for mnemonic creation
 	    (default is 256)
-	-p <password>: use <password> as the password for seed creation
 	-m <file>: read the mnemonic from <file>
+
+	-p <password>: use <password> as the password for seed creation
+	-t: read the password for seed creation from the terminal
 	-k <file>: read the password for seed creation from <file>
+
+  	-h: show this help
+
+	-U <user>: set seed user to <user> (only for kdbx entry)
+	-L <url>: set seed URL to <url> (only for kdbx entry)
+	-H <hint>: set seed password hint to <hint> (only for kdbx entry)
 EOF
   echo -e "${USAGE}" 1>&2 
   exit 1
@@ -44,7 +76,7 @@ EOF
 # default mnemonic entropy 
 ENTROPY=256
 
-while getopts "hfvte:p:k:m:" o; do
+while getopts "hfvte:p:k:m:U:L:H:" o; do
     case "${o}" in
         f)
 	    # force mode - overwrite existing files
@@ -88,6 +120,18 @@ while getopts "hfvte:p:k:m:" o; do
 	    [ ! -f ${OPTARG} ] && echo "abort: mnemonic file \"${OPTARG}\" does not exist, cannot read mnemonic" >&2 && exit 1
 	    MNEMONICFILE=${OPTARG}
             ;;
+        U)
+	    # specify kdbx entry user
+            USERNAME=${OPTARG}
+            ;;
+        L)
+	    # specify kdbx entry url
+            URL=${OPTARG}
+            ;;
+        H)
+	    # specify kdbx entry hint
+            HINT=${OPTARG}
+            ;;
         h)
             usage
             ;;
@@ -106,6 +150,10 @@ NAME=$1
 
 # seed password can be empty, but warn about it
 [ -z "${PASSWORD}" ] && echo "warning: empty password" >&2 
+
+# if there is not user supplied hint, generate one
+[ -z "${HINT}" ] && [ -z "${PASSWORD}" ] && HINT="seed has no password"
+[ -z "${HINT}" ] && [ ! -z "${PASSWORD}" ] && HINT="seed password has ${#PASSWORD} symbols"
  
 [ ! -z "${FORCE}" ] && echo "warning: existing output files will be overwritten (-f)" >&2 
 
@@ -156,5 +204,10 @@ fi
 
 BIP39_PASSPHRASE="${PASSWORD}" mnemonic-to-seed "${mnemonic[@]}" | base58 > ${SFILE}
 echo "info: seed written to \"${SFILE}\""
+
+[ ! -f "${DBFILE}" ] && ph --config ${DBNAME}.ini --no-password --no-cache init --name ${DBNAME} --database ${DBFILE}
+
+addKdbxEntry "${DBFILE}" "${NAME}" "$(cat ${SFILE})" "${USERNAME}" "${URL}" "$(cat ${MFILE})" "${HINT}"
+echo "info: data written to kdbx file \"${DBFILE}\""
 
 # EOF
