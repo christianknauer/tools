@@ -1,0 +1,12 @@
+%echo generating GNU pass key (credentials)
+Key-Type: RSA
+Key-Length: 4096
+Subkey-Type: default
+Subkey-Length: 4096
+Key-Usage: encrypt,sign
+Name-Real: GNU pass
+Name-Email: credentials@gnupass.app
+Name-Comment: credentials store
+Expire-Date: 0
+%commit
+%echo done
