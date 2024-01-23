@@ -1,3 +1,5 @@
+# see https://devenv.sh/guides/using-with-flakes/
+
 PROJECT_DIR=DEVENV_PROJECT_USING_FLAKES
 
 mkdir ${PROJECT_DIR}
@@ -7,7 +9,6 @@ cd ${PROJECT_DIR}
 mkdir .direnv
 nix flake init --template github:cachix/devenv
 git add .
-nix develop --impure
 
 mv devenv-flakes-dotenvrc .envrc
 direnv allow

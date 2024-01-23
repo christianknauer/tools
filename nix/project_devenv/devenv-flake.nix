@@ -1,0 +1,67 @@
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
+    systems.url = "github:nix-systems/default";
+    devenv.url = "github:cachix/devenv";
+  };
+
+  nixConfig = {
+    extra-trusted-public-keys = "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw=";
+    extra-substituters = "https://devenv.cachix.org";
+  };
+
+  outputs = { self, nixpkgs, devenv, systems, ... } @ inputs:
+    let
+      forEachSystem = nixpkgs.lib.genAttrs (import systems);
+    in
+    {
+      packages = forEachSystem (system: {
+        devenv-up = self.devShells.${system}.default.config.procfileScript;
+      });
+
+      # https://devenv.sh/pre-commit-hooks/#1-make-sure-that-commits-are-well-formatted-at-commit-time
+      # https://github.com/cachix/pre-commit-hooks.nix
+      pre-commit.hooks = {
+         # lint shell scripts
+         # shellcheck.enable = true;
+         # execute example shell from Markdown files
+         mdsh.enable = true;
+         # format Python code
+         # black.enable = true;
+      };
+
+
+      devShells = forEachSystem
+        (system:
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+          in
+          {
+            default = devenv.lib.mkShell {
+              inherit inputs pkgs;
+              modules = [
+                {
+                  # https://devenv.sh/reference/options/
+                  env.GREET = "cowboy"; 
+
+                  packages = [ 
+		    pkgs.broot 
+		    pkgs.mdsh
+		    pkgs.cowsay 
+		    pkgs.hello 
+		  ];
+
+		  # languages.haskell.enable = true;
+
+                  enterShell = ''
+		    cowsay "Hello user" 
+                  '';
+
+                  processes.run.exec = "hello";
+		 
+                }
+              ];
+            };
+          });
+    };
+}
