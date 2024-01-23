@@ -57,3 +57,8 @@ Specifically, from most efficient (but less flexible) to least efficient (but mo
 - use `execlineb -Sn` if we need only simple positional parameter substitution,
 - use `execlineb -p`, then elgetpositionals if we don't mind overwriting the current stack of positional parameters, and
 - use `execlineb`, then `elgetpositionals`, then `emptyenv -P` if we need the full power of positional parameter handling.
+
+
+## Conclusion
+
+None yet

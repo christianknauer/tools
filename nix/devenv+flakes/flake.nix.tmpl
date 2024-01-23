@@ -20,17 +20,6 @@
       });
 
       # https://devenv.sh/pre-commit-hooks/#1-make-sure-that-commits-are-well-formatted-at-commit-time
-      # https://github.com/cachix/pre-commit-hooks.nix
-      pre-commit.hooks = {
-         # lint shell scripts
-         # shellcheck.enable = true;
-         # execute example shell from Markdown files
-         mdsh.enable = true;
-         # format Python code
-         # black.enable = true;
-      };
-
-
       devShells = forEachSystem
         (system:
           let
@@ -47,6 +36,8 @@
                   packages = [ 
 		    pkgs.broot 
 		    pkgs.mdsh
+		    pkgs.shellcheck
+		    pkgs.shfmt
 		    pkgs.cowsay 
 		    pkgs.hello 
 		  ];
@@ -58,7 +49,17 @@
                   '';
 
                   processes.run.exec = "hello";
-		 
+
+                  # https://github.com/cachix/pre-commit-hooks.nix
+                  pre-commit.hooks = {
+                    # lint shell scripts
+                    shfmt.enable = true;
+                    shellcheck.enable = true;
+                    # execute example shell from Markdown files
+                    mdsh.enable = true;
+                    # format Python code
+                    # black.enable = true;
+                  };
                 }
               ];
             };
