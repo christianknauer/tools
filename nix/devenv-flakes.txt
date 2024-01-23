@@ -1,0 +1,18 @@
+PROJECT_DIR=DEVENV_PROJECT_USING_FLAKES
+
+mkdir ${PROJECT_DIR}
+cp devenv-flakes-dotenvrc ${PROJECT_DIR}/
+cd ${PROJECT_DIR}
+
+mkdir .direnv
+nix flake init --template github:cachix/devenv
+git add .
+nix develop --impure
+
+mv devenv-flakes-dotenvrc .envrc
+direnv allow
+git add .
+
+# CAVE: the standard .envrc is outdated which leads to errors
+# (e.g., it loads an old nix_direnv_version, it does not use
+#  watch_file, etc.)
