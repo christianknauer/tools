@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 
 initKdbxEntry() {
 	local database="$1"
@@ -23,3 +24,5 @@ setKdbxEntry() {
 
 	ph --no-password --no-cache --database "${database}" edit --set "${field}" "${value}" "${name}" 1>/dev/null
 }
+
+# EOF

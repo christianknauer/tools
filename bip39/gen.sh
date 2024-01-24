@@ -8,30 +8,7 @@
 # shellcheck disable=SC1091,SC1094
 source bip39.sh
 
-initKdbxEntry() {
-	local database="$1"
-	local name="$2"
-        printf "empty\nempty\nempty\nempty\n" | ph --no-password --no-cache --database "${database}" add "${name}" 1>/dev/null
-}
-
-checkKdbxEntry() {
-	local database="$1"
-	local name="$2"
-	if ph --no-password --no-cache --database "${database}" show "${name}" &>/dev/null; then
-	  return 0
-        else
-	  return 1
-	fi
-}
-
-setKdbxEntry() {
-	local database="$1"
-	local name="$2"
-	local field="$3"
-	local value="$4"
-
-	ph --no-password --no-cache --database "${database}" edit --set "${field}" "${value}" "${name}" 1>/dev/null
-}
+source kdbx.sh
 
 addKdbxEntry() {
 	local database="$1"
@@ -55,34 +32,6 @@ addKdbxEntry() {
         setKdbxEntry "${database}" "${name}" 'notes' "The password was created from a BIP39 mnemonic phrase."
         setKdbxEntry "${database}" "${name}" 'bip39_seed_mnemonic_phrase' "${mnemonic}"
         setKdbxEntry "${database}" "${name}" "${HINTFIELD}" "${HINTORPASSWORD}"
-}
-
-addKdbxEntryOLD() {
-	local database="$1"
-	local name="$2"
-	local password="$3"
-	local user="$4"
-	local URL="$5"
-	local mnemonic="$6"
-	local hint="$7"
-	local seed_password="$8"
-
-	local FIELDS='notes,bip39_seed_mnemonic_phrase,bip39_seed_password'
-	local HINTORPASSWORD="${seed_password}"
-
-	# if a hint is given, the seed_password is not embedded
-	[ -n "${hint}" ] && FIELDS="${FIELDS}_hint" && HINTORPASSWORD="${hint}"
-
-	cat <<EOF | ph --no-password --no-cache --database "${database}" add --fields "${FIELDS}" "${name}" 1>/dev/null
-${user}
-${password}
-${password}
-${URL}
-The password was created from a BIP39 mnemonic phrase.
-${mnemonic}
-${HINTORPASSWORD}
-EOF
-	#ph --no-password --no-cache --database ${database} show ${name}
 }
 
 SCRIPT=$(basename "$0")
