@@ -16,10 +16,10 @@ multisubstitute {
 
 ## Variable names
 
- - names of env vars start with an underscore, e.g.,
+- names of env vars start with an underscore, e.g.,
 
 ```bash
-getcwd _fcwd 
+getcwd _fcwd
 ```
 
 - names of non-env vars do not start with an underscore, e.g.,
@@ -30,10 +30,11 @@ importas -ui fcwd _fcwd
 
 ## Substitutions
 
-We try to minimize (costly) substitutions by collecting them  in (few) `multisubstitute` commands:
+We try to minimize (costly) substitutions by collecting them in
+(few) `multisubstitute` commands:
 
 ```bash
-getcwd _fcwd 
+getcwd _fcwd
 
 multisubstitute {
   multidefine -d : "foreground:background" { fg bg }
@@ -49,11 +50,19 @@ multisubstitute {
 
 ## Positional parameters
 
-Whenever we only have to substitute the positional parameters, and don't need to go 
-through the whole `elgetpositionals` and `emptyenv` chain we use the `-S` option of `execlineb`.
-Specifically, from most efficient (but less flexible) to least efficient (but more flexible) [see](https://skarnet.org/software/execline/el_pushenv.html), we
+Whenever we only have to substitute the positional parameters,
+and don't need to go through the whole `elgetpositionals` and
+`emptyenv` chain we use the `-S` option of `execlineb`.
+Specifically, from most efficient (but less flexible) to least
+efficient (but more flexible)
+[see](https://skarnet.org/software/execline/el_pushenv.html), we
 
 - use `execlineb -P` if wo don't need positional parameters at all,
+
 - use `execlineb -Sn` if we need only simple positional parameter substitution,
-- use `execlineb -p`, then elgetpositionals if we don't mind overwriting the current stack of positional parameters, and
-- use `execlineb`, then `elgetpositionals`, then `emptyenv -P` if we need the full power of positional parameter handling.
+
+- use `execlineb -p`, then `elgetpositionals` if we don't mind overwriting
+  the current stack of positional parameters, and
+
+- use `execlineb`, then `elgetpositionals`, then `emptyenv -P` if we
+  need the full power of positional parameter handling.
