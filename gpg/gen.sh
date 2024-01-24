@@ -5,36 +5,8 @@
 
 [ -n "$sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
 
+source gpg.sh
 source kdbx.sh
-
-getKeyTrust() {
-	gpg --export-ownertrust 2> /dev/null | grep "$(getKeyFingerprint "$1")" | cut -f 2 -d ':'
-}
-
-getKeyId() {
-        gpg --list-keys  --with-colons "${1}" 2> /dev/null | grep '^pub' | cut -f 5 -d ':'
-}
-
-getKeyFingerprint() {
-	gpg --list-keys --fingerprint --with-colons "${1}" 2> /dev/null | grep '^fpr' | head -1 | cut -f 10 -d ':'
-}
-
-getKeygrip() {
-	gpg --with-colons --fingerprint --with-keygrip "${1}" 2> /dev/null | tail -1 | grep '^grp' | cut -f 10 -d ':' 
-}
-
-isKeyCachedinAgent() {
-	gpg-connect-agent 'keyinfo --list' /bye | grep "$(getKeygrip "${1}")" | cut -d ' ' -f 7 | grep '^1' > /dev/null 
-}
-
-unlockKeyinAgent() {
-	local KEYNAME="$1"
-	local PASSWORD="$2"
-
-#	local KEYGRIP=$(gpg --with-colons --fingerprint --with-keygrip "${KEYNAME}" | tail -1 | grep '^grp' | cut -f 10 -d ':')
-#echo "${PASSWORD}" | "$(gpgconf --list-dirs libexecdir)"/gpg-preset-passphrase --preset "${KEYGRIP}"
-        echo "${PASSWORD}" | "$(gpgconf --list-dirs libexecdir)"/gpg-preset-passphrase --preset "$(getKeygrip "${KEYNAME}")" &> /dev/null
-}
 
 addKdbxEntry() {
 	local database="$1"
@@ -148,7 +120,6 @@ fi
 if gpg --list-secret-keys "${KEYNAME}" &>/dev/null; then
   if [ -n "${FORCE}" ]; then
 	  echo "warning: removing secret key ${KEYNAME} from gpg storage (-F)" >&2 
-    #gpg --yes --delete-secret-key "${KEYNAME}"
     gpg --batch --yes --delete-secret-key "$(getKeyFingerprint "${KEYNAME}")"
     gpg --list-secret-keys "${KEYNAME}" &>/dev/null && echo "abort: secret key ${KEYNAME} could not be removed" >&2 && exit 1
   else
@@ -160,7 +131,6 @@ fi
 if gpg --list-keys "${KEYNAME}" &>/dev/null; then
   if [ -n "${FORCE}" ]; then
     echo "warning: removing public key ${KEYNAME} from gpg storage (-F)" >&2 
-    #gpg --delete-key "${KEYNAME}"
     gpg --batch --yes --delete-key "$(getKeyFingerprint "${KEYNAME}")"
     gpg --list-keys "${KEYNAME}" &>/dev/null && echo "abort: public key ${KEYNAME} could not be removed" >&2 && exit 1
   else
@@ -207,34 +177,28 @@ rm -f "${BATCHFILE}"
 gpg --homedir "${EGPGHOME}" --armor --output "${PKEYFILE}" --export "${KEYNAME}" &> /dev/null
 echo "${PASSWORD}" | gpg --homedir "${EGPGHOME}" --armor --output "${SKEYFILE}" --export-secret-key --passphrase-fd 0 --pinentry-mode loopback "${KEYNAME}" &> /dev/null
 
-# debugging info only
-#gpg --homedir "${EGPGHOME}" --list-secret-keys --keyid-format=long
-
 # remove ephemeral gpg storage
 rm -rf "${EGPGHOME}"
 
 # import keys from files to gpg storage
 echo "${PASSWORD}" | gpg --passphrase-fd 0 --pinentry-mode loopback --import "${SKEYFILE}" &> /dev/null
 
-# import keys from files to gpg storage
-#KEYID=$(gpg --with-colons --import-options show-only --import "${PKEYFILE}" | grep '^pub' | cut -f 5 -d ':')
-#expect -c "spawn gpg --edit-key {$KEYID} trust quit; send \"5\\ry\\r\"; expect eof"
 # set key trust to ultimate
 expect -c "spawn gpg --edit-key {$(getKeyId "${KEYNAME}")} trust quit; send \"5\\ry\\r\"; expect eof" &> /dev/null
 
-# cache key password in agent
-unlockKeyinAgent "$KEYNAME" "$PASSWORD"
-
-#gpg-connect-agent 'keyinfo --list' /bye
-
-KEYGRIP=$(getKeygrip "${KEYNAME}")
 KEYID=$(getKeyId "${KEYNAME}")
-#KEYGRIP=$(gpg --with-colons --fingerprint --with-keygrip "${KEYNAME}" | tail -1 | grep '^grp' | cut -f 10 -d ':')
-#echo "${PASSWORD}" | "$(gpgconf --list-dirs libexecdir)"/gpg-preset-passphrase --preset "${KEYGRIP}"
+KEYFP=$(getKeyFingerprint "${KEYNAME}")
+KEYGRIP=$(getKeygrip "${KEYNAME}")
 
-echo "info: ${KEYNAME} created, keyid=${KEYID}, keygrip=${KEYGRIP}"
-isKeyCachedinAgent "$KEYNAME" && echo "info: key successfully cached in agent" 
-echo "info: key trust level is $(getKeyTrust "${KEYNAME}")"
+echo "info: key ${KEYNAME} created"
+echo "info:   fingerprint=${KEYFP}"
+echo "info:   id=${KEYID}"
+echo "info:   grip=${KEYGRIP}"
+echo "info:   trust=$(getKeyTrust "${KEYNAME}")"
+# cache key in agent
+unlockKeyinAgent "$KEYNAME" "$PASSWORD"
+isKeyCachedinAgent "$KEYNAME" && echo "info:   cached in agent" 
+
 ## check 
 #gpg --output ${PWFILE}.gpg --encrypt --recipient "${KEYNAME}" ${PWFILE}
 #gpg --output ${PWFILE}.dec --decrypt ${PWFILE}.gpg
