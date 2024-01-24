@@ -8,7 +8,56 @@
 # shellcheck disable=SC1091,SC1094
 source bip39.sh
 
+initKdbxEntry() {
+	local database="$1"
+	local name="$2"
+        printf "empty\nempty\nempty\nempty\n" | ph --no-password --no-cache --database "${database}" add "${name}" 1>/dev/null
+}
+
+checkKdbxEntry() {
+	local database="$1"
+	local name="$2"
+	if ph --no-password --no-cache --database "${database}" show "${name}" &>/dev/null; then
+	  return 0
+        else
+	  return 1
+	fi
+}
+
+setKdbxEntry() {
+	local database="$1"
+	local name="$2"
+	local field="$3"
+	local value="$4"
+
+	ph --no-password --no-cache --database "${database}" edit --set "${field}" "${value}" "${name}" 1>/dev/null
+}
+
 addKdbxEntry() {
+	local database="$1"
+	local name="$2"
+	local password="$3"
+	local user="$4"
+	local URL="$5"
+	local mnemonic="$6"
+	local hint="$7"
+	local seed_password="$8"
+
+	local HINTFIELD='bip39_seed_password'
+	local HINTORPASSWORD="${seed_password}"
+
+	# if a hint is given, the seed_password is not embedded
+	[ -n "${hint}" ] && HINTFIELD="${HINTFIELD}_hint" && HINTORPASSWORD="${hint}"
+
+        setKdbxEntry "${database}" "${name}" 'username' "${user}"
+        setKdbxEntry "${database}" "${name}" 'password' "${password}"
+        setKdbxEntry "${database}" "${name}" 'URL' "${URL}"
+        setKdbxEntry "${database}" "${name}" 'notes' "The password was created from a BIP39 mnemonic phrase."
+        setKdbxEntry "${database}" "${name}" 'bip39_seed_mnemonic_phrase' "${mnemonic}"
+        setKdbxEntry "${database}" "${name}" "${HINTFIELD}" "${HINTORPASSWORD}"
+}
+
+addKdbxEntryOLD() {
 	local database="$1"
 	local name="$2"
 	local password="$3"
@@ -234,9 +283,22 @@ echo "info: seed written to \"${SFILE}\""
 DBNAME="${NAME}"
 DBFILE="${DBNAME}.kdbx"
 
-[ ! -f "${DBFILE}" ] && ph --config "${DBNAME}.ini" --no-password --no-cache init --name "${SCRIPT} - ${DBNAME}" --database "${DBFILE}"
+if [ ! -f "${DBFILE}" ]; then
+  echo "info: no database ${DBFILE} - creating it"
+  ph --config "${DBNAME}.ini" --no-password --no-cache init --name "${SCRIPT} - ${DBNAME}" --database "${DBFILE}" 1> /dev/null
+else
+  echo "info: using database ${DBFILE}"
+fi
+
+if ! checkKdbxEntry "${DBFILE}" "${NAME}"; then
+  echo "info: no entry at ${NAME} in database - creating it"
+  initKdbxEntry "${DBFILE}" "${NAME}" 
+else
+  echo "info: entry at ${NAME} found in database - overwriting"
+fi
 
 addKdbxEntry "${DBFILE}" "${NAME}" "$(cat "${SFILE}")" "${USERNAME}" "${URL}" "$(cat "${MFILE}")" "${HINT}" "${PASSWORD}"
+
 echo "info: data written to kdbx file \"${DBFILE}\""
 
 # EOF
