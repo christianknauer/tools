@@ -1,0 +1,10 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - echo "nothing to do"
+
+  tests:
+    cmds:
+      - bats tests/gen-password.bats

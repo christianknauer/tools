@@ -6,10 +6,12 @@ mkShell {
   ];
   packages = [ 
     bats
+    go-task
     lefthook
     mdl
     shellcheck 
     shfmt
+    yamlfmt
   ];
   shellHook =
   ''
