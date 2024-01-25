@@ -1,0 +1,10 @@
+pre-commit:
+  commands:
+    shellcheck:
+      tags: lint
+      glob: "*.{sh,bats}"
+      run: shellcheck {staged_files}
+    shfmt:
+      tags: pp 
+      glob: "*.{sh,bats}"
+      run: shfmt -i 2 -ci -fn -w {staged_files}
