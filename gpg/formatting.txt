@@ -1,0 +1,1 @@
+shfmt -ln bash -i 2 -ci -fn gen.sh 

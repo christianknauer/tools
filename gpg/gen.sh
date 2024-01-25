@@ -2,21 +2,20 @@
 
 # check if we are being sourced
 (return 0 2>/dev/null) && sourced=1
-
 [ -n "$sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
+
+# constants 
+SCRIPT=$(basename "$0") && readonly SCRIPT
 
 source gpg.sh
 source kdbx.sh
 
-addKdbxEntry() {
+function addKdbxEntry() {
 	local database="$1"
 	local name="$2"
-	local user="$4"
-	local URL="$5"
 }
 
-SCRIPT=$(basename "$0")
-usage() {
+function usage() {
 	local BOLD="\033[1m"
 	local OFF="\033[0m"
 
@@ -43,6 +42,8 @@ EOF
 	exit 1
 }
 
+function main() 
+{
 while getopts "Fhtp:f:" o; do
 	case "${o}" in
 	F)
@@ -231,5 +232,8 @@ fi
 #addKdbxEntry "${DBFILE}" "${NAME}" "$(cat "${SFILE}")" "${USERNAME}" "${URL}" "$(cat "${MFILE}")" "${HINT}" "${PASSWORD}"
 
 echo "info: written to kdbx file \"${DBFILE}\""
+}
+
+main "$@"
 
 # EOF
