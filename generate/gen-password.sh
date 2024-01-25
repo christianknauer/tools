@@ -8,7 +8,7 @@
 # shellcheck disable=SC1091,SC1094
 source bip39.sh
 
-source ../gpg/kdbx.sh
+source kdbx.sh
 
 kdbx_add_entries() {
 	local database="$1"
