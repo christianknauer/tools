@@ -7,8 +7,11 @@ pre-commit:
     shellcheck:
       tags: chk
       glob: "*.{sh,bats}"
-      run: shellcheck {staged_files}
     shfmt:
-      tags: lint 
+      tags: lint
       glob: "*.{sh,bats}"
       run: shfmt -i 2 -ci -fn -w {staged_files}
+    yamlfmt:
+      tags: lint
+      glob: "*.{yml,yaml}"
+      run: yamlfmt {staged_files}
