@@ -1,10 +1,14 @@
 pre-commit:
   commands:
-    shellcheck:
+    mdl:
       tags: lint
+      glob: "*.{md}"
+      run: mdl {staged_files}
+    shellcheck:
+      tags: chk
       glob: "*.{sh,bats}"
       run: shellcheck {staged_files}
     shfmt:
-      tags: pp 
+      tags: lint 
       glob: "*.{sh,bats}"
       run: shfmt -i 2 -ci -fn -w {staged_files}
