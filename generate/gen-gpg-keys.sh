@@ -168,7 +168,7 @@ function main()
         # read password from file
         [ ! -f "${OPTARG}" ] && echo "abort: password file \"${OPTARG}\" does not exist, cannot read passphrase" >&2 && exit 1
         PASSWORD=$(cat "${OPTARG}")
-        echo "info: password (${#PASSWORD} symbols) read from ${OPTARG}">&2 
+        echo "info: password (${#PASSWORD} symbols) read from ${OPTARG}" >&2
         ;;
       k)
         # read password from kdbx db
@@ -184,7 +184,6 @@ function main()
     esac
   done
   shift $((OPTIND - 1))
-
 
   readonly NAME_SPEC=$1
   # name spec is required
@@ -202,7 +201,7 @@ function main()
     [ -z "${kdbx_entry}" ] && kdbx_entry="${NAME_EMAIL}"
 
     PASSWORD=$(kdbx_get_entry "${kdbx_db}" "${kdbx_password}" "${kdbx_entry}" 'password')
-    echo "info: password (${#PASSWORD} symbols) read from ${kdbx_entry}@${kdbx_db}">&2 
+    echo "info: password (${#PASSWORD} symbols) read from ${kdbx_entry}@${kdbx_db}" >&2
   fi
 
   readonly PASSWORD
@@ -358,7 +357,7 @@ EOF
     kdbx_notes="${kdbx_notes}
 This entry was last updated by ${SCRIPT} (gpg key generation) on $(date)."
     kdbx_set_entry "${kdbx_db}" "${kdbx_password}" "${kdbx_entry}" 'notes' "${kdbx_notes}"
-    echo "info: keys written to ${kdbx_entry}@${kdbx_db}">&2 
+    echo "info: keys written to ${kdbx_entry}@${kdbx_db}" >&2
   fi
 }
 
