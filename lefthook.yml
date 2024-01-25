@@ -1,4 +1,5 @@
 pre-commit:
+  follow: true
   commands:
     mdl:
       tags: lint
