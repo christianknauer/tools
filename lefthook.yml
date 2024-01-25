@@ -4,9 +4,14 @@ pre-commit:
       tags: lint
       glob: "*.{md}"
       run: mdl {staged_files}
+    bats:
+      tags: test
+      glob: "*.{bats}"
+      run: bats {staged_files}
     shellcheck:
       tags: chk
       glob: "*.{sh,bats}"
+      run: shellcheck {staged_files}
     shfmt:
       tags: lint
       glob: "*.{sh,bats}"
