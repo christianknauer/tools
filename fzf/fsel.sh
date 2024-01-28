@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+
+# file: fsel
+
+# Switch between Ripgrep launcher mode (CTRL-R) and fzf filtering mode (CTRL-F)
+
+function init_state_file()
+{
+  local -r app_name=$(readlink -m "$0")
+  local -r state_file_prefix="/tmp/$(basename -s .sh $app_name)-$USER"
+
+  local state_file_name="${1:-$state_file_prefix-$RANDOM}"
+  [ ! -f "$state_file_name" ] && touch "$state_file_name" && echo >&2 "info: state file $state_file_name created"
+  [ ! -f "$state_file_name" ] && echo >&2 "abort: state file $state_file_name not found" && exit 1
+  echo "$state_file_name"
+  #[ -z "$state_file_name" ] && state_file_name="$state_file_prefix-$RAND"
+}
+function create_rg_runner()
+{
+  [ -z "$1" ] && error "need runner name"
+  local rg_runner_file_name="$1"
+  local -r RG_PREFIX="rg --column --line-number --no-heading --color=always --smart-case "
+  read -r -d '' script <<EOF
+#!/usr/bin/env bash
+
+# file: $rg_runner_file_name
+# run rg with dynamically changing options
+
+# call with $rg_runner_file_name id cmd name1 val1 name2 val2 ... -- 
+
+# - reads vars from a state file
+# - defines namei=vali
+# - writes vars to state file
+# - performs action accoiding to cmd
+
+state_file_id="\$1" # id of the state file
+shift
+state_file="rg-runner-\$state_file_id.state"
+# state file variables
+# RG_HIDDEN=
+
+cmd="\$1"
+shift
+
+# read variables to state file
+[ -f "\$state_file" ] && source "\$state_file"
+
+while true; do
+  case "\$1" in
+    --)
+      shift
+      break
+       ;;
+    *)
+      name="\$1"
+      shift
+      [ -z "$name" ] && break
+      val="\$1"
+      shift
+      eval "\$name=\$val"
+    ;;
+  esac
+done
+
+# write variables to state file
+echo "RG_HIDDEN=\$RG_HIDDEN" > "\$state_file"
+
+case "\$cmd" in
+  rg)
+    exec $RG_PREFIX \$RG_HIDDEN
+  ;;
+esac
+
+# EOF
+EOF
+  echo -e "$script" > "$rg_runner_file_name"
+  echo >&2 "info: rg runner file $rg_runner_file_name created"
+  [ ! -f "$rg_runner_file_name" ] && echo >&2 "abort: rg runner file $rg_runner_file_name not found" && exit 1
+  chmod +x "$rg_runner_file_name"
+}
+
+function main()
+{
+  
+  local state_file_name=$(init_state_file "")
+  init_state_file "$state_file_name"
+  create_rg_runner "test"
+  exit
+
+TMP_FILE_PREFIX="/tmp/rg-fzf-${USER}-"
+  local -r RG_PREFIX="rg --column --line-number --no-heading --color=always --smart-case "
+  local -r INITIAL_QUERY="${*:-}"
+  local -r PREVIEW_CMD='fzf-preview {1}:{2}'
+  local -r PREVIEW_WINDOW='right,40%,+{2}+3/3,~3'
+
+  local -r MANPAGE=$(
+  cat <<EOF
+Content based file selector
+
+ ENTER   : return selection 
+ C-d     : return dir of selection
+ C-e     : open selection with editor
+ C-o     : open selection
+
+ C-f     : switch to fuzzy search
+ C-g     : switch to grep search (default)
+
+ TAB     : start name based selector in cwd
+
+ A-h     : search hidden files below cwd 
+ A-H     : do not search hidden files below cwd
+           (default)
+
+ A-UP    : move cwd to home dir
+ A-LEFT  : move cwd up one dir
+ A-RIGHT : move cwd down one dir towards selection
+ A-DOWN  : move cwd down to dir of selection
+
+ A-m     : show this info
+ A-p     : toggle preview window
+
+EOF
+)
+
+PARENT_DIRECTORY=$(readlink -m "${PWD}/..")
+
+rm -f ${TMP_FILE_PREFIX}{r,f,R,F,o}
+touch ${TMP_FILE_PREFIX}{r,f,o}
+
+: | fzf --ansi --disabled --query "$INITIAL_QUERY" \
+  --bind "start:reload(echo {q} > ${TMP_FILE_PREFIX}r; touch "${TMP_FILE_PREFIX}R"; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+unbind(ctrl-g)" \
+  --bind "change:reload:sleep 0.1; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true" \
+  --bind "ctrl-f:unbind(change,ctrl-f)+transform-prompt(echo \(g:{q}\) f\>\ )+enable-search+rebind(ctrl-g)+transform-query(echo {q} > ${TMP_FILE_PREFIX}r; rm -f ${TMP_FILE_PREFIX}R; touch ${TMP_FILE_PREFIX}F; cat ${TMP_FILE_PREFIX}f)" \
+  --bind "ctrl-g:unbind(ctrl-g)+transform-prompt(echo \(f:{q}\) g\>\ )+disable-search+reload($RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+rebind(change,ctrl-f)+transform-query(rm -f ${TMP_FILE_PREFIX}F; touch ${TMP_FILE_PREFIX}R; echo {q} > ${TMP_FILE_PREFIX}f; cat ${TMP_FILE_PREFIX}r)" \
+  --color "hl:-1:underline,hl+:-1:underline:reverse" \
+  --prompt "(f:) g> " \
+  --delimiter : \
+  --header-first \
+  --header "(grep) ${PWD}" \
+  --border=rounded \
+  --preview "${PREVIEW_CMD}" \
+  --preview-window "$PREVIEW_WINDOW" \
+  --height ${FZF_TMUX_HEIGHT:-90%} \
+  --reverse \
+  --bind 'alt-p:change-preview-window(right,70%|down,70%|down,40%|left,40%|left,70%|hidden|right,40%)' \
+  --bind "alt-m:preview(echo \"${MANPAGE}\"; sleep 3; clear; ${PREVIEW_CMD})" \
+  --bind "alt-h:unbind(alt-h)+reload(echo "--hidden" > ${TMP_FILE_PREFIX}o; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+rebind(alt-H)" \
+  --bind "alt-H:unbind(alt-H)+reload(echo "" > ${TMP_FILE_PREFIX}o; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+rebind(alt-h)" \
+  --bind "enter:become(__SEL=\"\$(readlink -m {1})\"; 
+                                echo \${__SEL}:{2})" \
+  --bind "ctrl-e:become(__SEL=\"\$(readlink -m {1})\"; 
+                                echo \"edit \${__SEL} (l. {2})\"; \"\$EDITOR\" \${__SEL} +{2})" \
+  --bind "ctrl-o:become(__SEL=\"\$(readlink -m {1})\"; 
+                                echo \"open \${__SEL}\"; rifle \${__SEL})" \
+  --bind "ctrl-d:become(__SEL=\$(readlink -m \"\$(echo {1})\"); [ ! -d \"\${__SEL}\" ] && __SEL=\"\$(dirname \"\${__SEL}\")\"; \
+                                echo \"\${__SEL}\")" \
+  --bind "tab:become(__QRY={q}; [ -f ${TMP_FILE_PREFIX}R ] && __QRY=\$(cat ${TMP_FILE_PREFIX}f); \
+			     __SEL=\$(readlink -m \"\$(echo {1})\"); [ ! -d \"\${__SEL}\" ] && __SEL=\"\$(dirname \"\${__SEL}\")\"; \
+				fzf-fd \"\${__SEL}\" \${__QRY})" \
+  --bind "alt-up:become(__QRY={q}; [ -f ${TMP_FILE_PREFIX}F ] && __QRY=\$(cat ${TMP_FILE_PREFIX}r); \
+    			        cd ~; \
+				fzf-rg \${__QRY})" \
+  --bind "alt-down:become(__QRY={q}; [ -f ${TMP_FILE_PREFIX}F ] && __QRY=\$(cat ${TMP_FILE_PREFIX}r); \
+          		     __SEL={1};  [ ! -d \"\${__SEL}\" ] && __SEL=\"\$(dirname \"\${__SEL}\")\"; \
+			        cd \"\${__SEL}\"; \
+				fzf-rg \${__QRY})" \
+  --bind "alt-left:become(__QRY={q}; [ -f ${TMP_FILE_PREFIX}F ] && __QRY=\$(cat ${TMP_FILE_PREFIX}r); \
+    			        cd \"${PARENT_DIRECTORY}\"; \
+				fzf-rg \${__QRY})" \
+  --bind "alt-right:become(__QRY={q}; [ -f ${TMP_FILE_PREFIX}F ] && __QRY=\$(cat ${TMP_FILE_PREFIX}r); \
+          		     __SEL={1};  [ ! -d \"\${__SEL}\" ] && __SEL=\"\$(dirname \"\${__SEL}\")\"; \
+    			     __SEL="\${__SEL}/"; __SEL=\"\${__SEL%\${__SEL#*/}}\"; \
+			        cd \"\${__SEL}\"; \
+				fzf-rg \${__QRY})"
+
+}
+
+main "@"
+
+# EOF
