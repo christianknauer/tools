@@ -7,6 +7,7 @@ fkill()
   users=$(id -nu)
   users="${users:0:7}"
   local query
+  local pid_only
 
   local selection line entry
   local uid pid cmd
