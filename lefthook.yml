@@ -17,6 +17,10 @@ pre-commit:
       tags: lint
       glob: "*.{sh,bats}"
       run: shfmt -i 2 -ci -fn -w {staged_files}
+    shdoc:
+      tags: doc
+      glob: "*.{sh}"
+      run: shdoc {staged_files}
     yamlfmt:
       tags: lint
       glob: "*.{yml,yaml}"
