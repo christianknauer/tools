@@ -128,10 +128,20 @@ rm -f ${TMP_FILE_PREFIX}{r,f,R,F,o}
 touch ${TMP_FILE_PREFIX}{r,f,o}
 
 : | fzf --ansi --disabled --query "$INITIAL_QUERY" \
+  # ----------------------------------------------------------------------------------
   --bind "start:reload(echo {q} > ${TMP_FILE_PREFIX}r; touch "${TMP_FILE_PREFIX}R"; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+unbind(ctrl-g)" \
+  # - run searcher with options
+  # 
+  # --bind "start:reload(fsel _id ${id} _query {q} _reload || true)"
+
+  # ----------------------------------------------------------------------------------
   --bind "change:reload:sleep 0.1; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true" \
+  # --bind "change:reload(fsel _id ${id} _query {q} _sleep 0.1 _reload || true)"
+  # ----------------------------------------------------------------------------------
   --bind "ctrl-f:unbind(change,ctrl-f)+transform-prompt(echo \(g:{q}\) f\>\ )+enable-search+rebind(ctrl-g)+transform-query(echo {q} > ${TMP_FILE_PREFIX}r; rm -f ${TMP_FILE_PREFIX}R; touch ${TMP_FILE_PREFIX}F; cat ${TMP_FILE_PREFIX}f)" \
+  # ----------------------------------------------------------------------------------
   --bind "ctrl-g:unbind(ctrl-g)+transform-prompt(echo \(f:{q}\) g\>\ )+disable-search+reload($RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+rebind(change,ctrl-f)+transform-query(rm -f ${TMP_FILE_PREFIX}F; touch ${TMP_FILE_PREFIX}R; echo {q} > ${TMP_FILE_PREFIX}f; cat ${TMP_FILE_PREFIX}r)" \
+  # ----------------------------------------------------------------------------------
   --color "hl:-1:underline,hl+:-1:underline:reverse" \
   --prompt "(f:) g> " \
   --delimiter : \
@@ -142,10 +152,25 @@ touch ${TMP_FILE_PREFIX}{r,f,o}
   --preview-window "$PREVIEW_WINDOW" \
   --height ${FZF_TMUX_HEIGHT:-90%} \
   --reverse \
+
   --bind 'alt-p:change-preview-window(right,70%|down,70%|down,40%|left,40%|left,70%|hidden|right,40%)' \
+  
+  # ----------------------------------------------------------------------------------
   --bind "alt-m:preview(echo \"${MANPAGE}\"; sleep 3; clear; ${PREVIEW_CMD})" \
+  # - show current man page 
+  #
+  # --bind "alt-m:preview(fsel _man)"
+
+  # ----------------------------------------------------------------------------------
   --bind "alt-h:unbind(alt-h)+reload(echo "--hidden" > ${TMP_FILE_PREFIX}o; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+rebind(alt-H)" \
-  --bind "alt-H:unbind(alt-H)+reload(echo "" > ${TMP_FILE_PREFIX}o; $RG_PREFIX \$(cat ${TMP_FILE_PREFIX}o) {q} || true)+rebind(alt-h)" \
+
+  # - toggle hidden flag
+  # - set query to {q} 
+  # - run current searcher with new options
+  # 
+  # --bind "alt-h:reload(fsel _id ${id} _toggle hidden _query {q} _reload || true)"
+
+
   --bind "enter:become(__SEL=\"\$(readlink -m {1})\"; 
                                 echo \${__SEL}:{2})" \
   --bind "ctrl-e:become(__SEL=\"\$(readlink -m {1})\"; 
@@ -177,4 +202,17 @@ touch ${TMP_FILE_PREFIX}{r,f,o}
 
 main "@"
 
+# required commands:
++mode
++cwd
++query
++exit
++cnffclr
++cnffload
++cnffsave
++cnfvset
++preview
++echo
++reload: reloads the current searcher
++become: complete restart (inc. restart of fzf)
 # EOF
