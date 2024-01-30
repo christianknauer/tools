@@ -5,17 +5,47 @@
 
 #set -eu
 
+# globals
 script=${0##*/}
-tempdir=$(mktemp -d -t tmp.XXXXXXXXXX)
-function cleanup {
-  echo "cleanup: $tempdir"
-  rm -rf "$tempdir"
+tempdir=''
+
+typeset -A options
+options[console]='/dev/null'
+options[logfile]='/dev/null'
+options[debug]=0
+options[mute]=0
+
+# init & exit code
+function startup {
+  tempdir=$(mktemp -d -t "tmp.${script}.XXXXXXXXXX") || return 1
+
+  echo "startup: $tempdir"
+  return 0
 }
+
+function cleanup {
+  echo "cleanup:" >&9
+  echo "  rm temp dir" >&9
+  rm -rf "$tempdir" >&9
+  echo "  close logfile" >&9
+  exec 9>&- 
+  exec 8>&- 
+}
+
+# traps
 trap cleanup EXIT
 trap 'echo "$script: ERR at line $LINENO" >&2' ERR
 
 check_app() { hash "$1" 2>/dev/null || { echo >&2 -e "abort: $1 is required"; return 1; } }
 check_apps() { for i in "$@"; do check_app "$i" || return 1; done }
+
+function catch() {
+    {
+        IFS=$'\n' read -r -d '' "${1}";
+        IFS=$'\n' read -r -d '' "${2}";
+        (IFS=$'\n' read -r -d '' _ERRNO_; return ${_ERRNO_});
+    } < <((printf '\0%s\0%d\0' "$(((({ shift 2; "${@}"; echo "${?}" 1>&3-; } | tr -d '\0' 1>&4-) 4>&2- 2>&1- | tr -d '\0' 1>&4-) 3>&1- | exit "$(cat)") 4>&1-)" "${?}" 1>&2) 2>&1)
+}
 
 usage() 
 {
@@ -30,29 +60,28 @@ EOF
 }
 
 parse_options() {
+
+  local opt err ec
   
-  [ "$1" = "options" ] || { declare -n options; options="$1"; }
-  shift
+  catch opt err getopt -o hq: --long DEBUG:,help,LOGFILE:,query: -- "$@"; ec=$?
 
-  local ec
-  local o
+  [ $ec -eq 1 ] && { echo >&2 "abort: $err"; } && exit 1
 
-  o=$(getopt -o q: --long toggle-searcher --long query: -- "$@") && ec=$?
-  [ $ec -eq 0 ] || { echo >&2 "abort: incorrect options provided"; return 1; }
-  eval set -- "$o"
+  eval set -- "$opt"
   while true; do
     case "$1" in
-      --toggle-searcher)
-	echo "toggle-searcher"
+      -h|--help)
+        usage
       ;;
-      --toggle-hidden)
-	echo "toggle-hidden"
-      ;;
-      --query)
+      --LOGFILE)
         shift
-        options[query]="$1"
+        options[logfile]="$1"
       ;;
-      -q)
+      --DEBUG)
+        shift
+        options[debug]="$1"
+      ;;
+      -q|--query)
         shift
         options[query]="$1"
       ;;
@@ -66,77 +95,45 @@ parse_options() {
     esac
     shift
   done
-}
 
-parse_first_run_options() {
-  [ "$1" = "options" ] || { declare -n options; options="$1"; }
-  shift
-
-  local ec
-  local o
-
-  o=$(getopt -o hq: --long help --long query: -- "$@") && ec=$?
-  [ $ec -eq 0 ] || { echo >&2 "abort: incorrect options provided"; return 1; }
-  eval set -- "$o"
-  while true; do
-    case "$1" in
-      -h)
-        usage
-      ;;
-      --help)
-        usage
-      ;;
-      -q)
-        shift
-        options[query]="$1"
-      ;;
-      --query)
-        shift
-        options[query]="$1"
-      ;;
-      --)
-        shift
-        break
-      ;;
-      *)
-        echo >&2 "warning: unknown options provided ($1 $2 ...)"
-      ;;
-    esac
-    shift
-  done
-}
-
-first_run() {
-  typeset -A opts
-  echo "first run"
-  parse_first_run_options opts "$@"
-  echo "query = '${opts[query]}'"
-  exit 0
+  echo "remainder: \"$@\""
 }
 
 run() {
-  typeset -A opts
   echo "run"
-  parse_options opts "$@"
-  echo "query = '${opts[query]}'"
+  echo "query = '${options[query]}'"
   exit 0
+}
+
+init() 
+{
+  # init logfile
+  exec 9> "${options[logfile]}"
+  exec 8> "${options[console]}"
 }
 
 main()
 {
   echo "main"
-  check_apps fzf getopt || exit 1
 
-  [ -z "$1" ] && first_run "$@"
-  case "$1" in
-    ++)
-      shift
-      run "$@"
-    ;;
-    *)
-      first_run "$@"
-    ;;
-  esac
+  if [ ! "$1" = '++' ]; then
+    # first run
+    echo "first time"
+  else
+    shift
+  fi
+
+  parse_options "$@"
+  typeset -p options
+  init
+  #echo "++++++++++++LOGMSG+++++++++" 1> >(tee /dev/tty >&9) 
+  echo "+++++++++++HIDDEN LOGMSG+++++++++" 1> >(tee /proc/self/fd/8 >&9) 
+  exec 8>&1
+  echo "++++++++++++VISIBLE LOGMSG+++++++++" 1> >(tee /proc/self/fd/8 >&9) 
+  run 
 }
+
+check_apps fzf getopt || exit 1
+startup "$@" || exit 1
 
 main "$@"
