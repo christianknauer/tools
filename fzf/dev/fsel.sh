@@ -3,9 +3,16 @@
 (return 0 2>/dev/null) && __sourced=1
 [ -n "$__sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
 
-set -eu
-trap 'echo "$NAME: Failed at line $LINENO" >&2' ERR
-NAME=${0##*/}
+#set -eu
+
+script=${0##*/}
+tempdir=$(mktemp -d -t tmp.XXXXXXXXXX)
+function cleanup {
+  echo "cleanup: $tempdir"
+  rm -rf "$tempdir"
+}
+trap cleanup EXIT
+trap 'echo "$script: ERR at line $LINENO" >&2' ERR
 
 check_app() { hash "$1" 2>/dev/null || { echo >&2 -e "abort: $1 is required"; return 1; } }
 check_apps() { for i in "$@"; do check_app "$i" || return 1; done }
@@ -14,7 +21,7 @@ usage()
 {
   local usage
   read -r -d '' usage <<EOF
-  Usage: ${FUNCNAME[0]} [OPTIONS] <query> 
+  Usage: $script [OPTIONS] <query> 
 
 	--query <query>: Set the initial fzf query to <query>
 EOF
@@ -27,11 +34,12 @@ parse_options() {
   [ "$1" = "options" ] || { declare -n options; options="$1"; }
   shift
 
-  local get_opts
+  local ec
+  local o
 
-  get_opts=$(getopt -o q: --long toggle-searcher --long query: -- "$@") && ec=$?
-  [ "$ec" -eq 0 ] || { echo >&2 "abort: incorrect options provided"; return 1; }
-  eval set -- "$get_opts"
+  o=$(getopt -o q: --long toggle-searcher --long query: -- "$@") && ec=$?
+  [ $ec -eq 0 ] || { echo >&2 "abort: incorrect options provided"; return 1; }
+  eval set -- "$o"
   while true; do
     case "$1" in
       --toggle-searcher)
@@ -61,10 +69,15 @@ parse_options() {
 }
 
 parse_first_run_options() {
-  local options
-  options=$(getopt -o hq: --long help --long query: -- "$@") && ec=$?
-  [ "$ec" -eq 0 ] || { echo >&2 "abort: incorrect options provided"; return 1; }
-  eval set -- "$options"
+  [ "$1" = "options" ] || { declare -n options; options="$1"; }
+  shift
+
+  local ec
+  local o
+
+  o=$(getopt -o hq: --long help --long query: -- "$@") && ec=$?
+  [ $ec -eq 0 ] || { echo >&2 "abort: incorrect options provided"; return 1; }
+  eval set -- "$o"
   while true; do
     case "$1" in
       -h)
@@ -75,13 +88,11 @@ parse_first_run_options() {
       ;;
       -q)
         shift
-        query="$1"
-	echo "query=$query"
+        options[query]="$1"
       ;;
       --query)
         shift
-        query="$1"
-	echo "query=$query"
+        options[query]="$1"
       ;;
       --)
         shift
@@ -96,8 +107,10 @@ parse_first_run_options() {
 }
 
 first_run() {
+  typeset -A opts
   echo "first run"
-  parse_first_run_options "$@"
+  parse_first_run_options opts "$@"
+  echo "query = '${opts[query]}'"
   exit 0
 }
 
@@ -124,155 +137,6 @@ main()
       first_run "$@"
     ;;
   esac
-}
-
-fkill()
-{
-  local signal='HUP'
-  local users
-  users=$(id -nu)
-  users="${users:0:7}"
-  local query
-  local pid_only
-
-  local selection line entry
-  local uid pid cmd
-
-  hash getopt 2>/dev/null || {
-    echo >&2 -e "abort: getopt is required"
-    return 1
-  }
-  hash fzf 2>/dev/null || {
-    echo >&2 -e "abort: fzf is required"
-    return 1
-  }
-  hash hck 2>/dev/null || {
-    echo >&2 -e "abort: hck is required"
-    return 1
-  }
-
-  local options
-  options=$(getopt -o hp02I3Q9KTp --long query: -- "$@") && ec=$?
-  [ "$ec" -eq 0 ] || {
-    echo >&2 "abort: incorrect options provided"
-    return 1
-  }
-  eval set -- "$options"
-  while true; do
-    case "$1" in
-      -h)
-        local usage
-        [ -f "${FUNCNAME[0]}.sh" ] && shdoc "${FUNCNAME[0]}.sh" && return 0
-        read -r -d '' usage <<EOF
-  Usage: ${FUNCNAME[0]} [OPTIONS] <query> 
-
-  Fuzzy selection for kill.
-
-  Searches the list of running processes with fzf. If an entry is selected the 
-  corresponding process is killed unless the -p option is provided. In that case
-  the pid of the selected process is printed to stdout.
-
-  A process is killed by sending a HUP signal. An alternative kill signal can 
-  be specified with the -2,-I (INT), -3,-Q (QUIT), -9, -K (KILL) options.
-
-  Only the processes of the current user are searched, unless the -0 option is 
-  provided. In that case all processes are searched.
-
-  Arguments:
-	<query>: Set the initial fzf query to <query> (optional).
-
-  Options (all optional):
-  	-h: Show this help.
-
-	-0: Search all processes (of all users).
-
-	-p: Only print pid of the selected process. 
-
-        -2,-I: Send INT signal.
-	-3,-Q: Send QUIT signal
-	-9,-K: Send KILL signal
-
-	--query <query>: Set the initial fzf query to <query>
-EOF
-        echo -e "$usage" 1>&2
-        return 0
-        ;;
-      -p)
-        pid_only=1
-        ;;
-      -0)
-        users='.*'
-        ;;
-      -2)
-        signal='INT'
-        ;;
-      -I)
-        signal='INT'
-        ;;
-      -3)
-        signal='QUIT'
-        ;;
-      -Q)
-        signal='QUIT'
-        ;;
-      -9)
-        signal='KILL'
-        ;;
-      -K)
-        signal='KILL'
-        ;;
-      -T)
-        signal='TERM'
-        ;;
-      --query)
-        shift # The arg is next in position args
-        query="$1"
-        ;;
-      --)
-        shift
-        break
-        ;;
-      *)
-        echo >&2 "abort: incorrect options provided ($1)"
-        return 1
-        ;;
-    esac
-    shift
-  done
-
-  query="$1"
-
-  local pattern='^([^ ]*) ([0-9]*) (.*)'
-  selection=$(ps -aef | hck -f1,2,8- | tr -s '[:blank:]' ' ' | tail -n+2 |
-    while IFS=$'\n' read -r line; do
-      [[ ! "${line}" =~ ${pattern} ]] && echo "abort: regexp does not match" && return 1
-      uid="${BASH_REMATCH[1]}"
-      pid="${BASH_REMATCH[2]}"
-      cmd="${BASH_REMATCH[3]}"
-      [[ "${uid}" =~ ${users} ]] && printf "%8s    %5d    %s\n" "$uid" "$pid" "$cmd"
-    done |
-    fzf --query "$query")
-  [ -z "$selection" ] && return 0
-  entry=$(echo "$selection" | tr -s '[:blank:]' ' ' | sed -e 's/^ //g')
-
-  [[ ! "${entry}" =~ ${pattern} ]] && echo "abort: regexp does not match" && return 1
-  uid="${BASH_REMATCH[1]}"
-  pid="${BASH_REMATCH[2]}"
-  cmd="${BASH_REMATCH[3]}"
-
-  [ -z "$pid" ] && echo "abort: no pid" && return 1
-
-  if [ -z "$pid_only" ]; then
-    echo "kill -$signal $pid"
-    printf " %8s:   %s\n" "$uid" "$cmd"
-    kill -"$signal" "$pid"
-    sleep 1
-    entry=$(ps -aef | hck -f2 | tr -s '[:blank:]' ' ' | tail -n+2 | grep ^"$pid"$)
-    [ -n "$entry" ] && echo "error: pid $pid still active" && return 1
-  else
-    echo "$pid"
-  fi
-  return 0
 }
 
 main "$@"

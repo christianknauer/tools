@@ -60,11 +60,13 @@ typeset -p myarray
 
 copy+="$(serialize_array_to_string myarray COPY_SITE_DATA_B)" 
 copy+='\n'
-copy+='}\n'
+copy+='}'
 printf "$copy" > copy.json
 
 typeset -A ax
-read_array_from_json_file ax COPY_SITE_DATA copy.json 
+read_array_from_json_file ax COPY_SITE_DATA_A copy.json 
+typeset -p ax
+read_array_from_json_file ax COPY_SITE_DATA_B copy.json 
 typeset -p ax
 
 # make use of the array variables
