@@ -18,10 +18,18 @@ function catch() {
 script=${0##*/}
 
 declare -A options_cfg
-options_cfg[logfile]='([short]="L" [long]="LOGFILE" [arg]=":" [default]="/dev/null" [handler]="" [help]="set the name of the logfile to <arg>")'
-options_cfg[debug]='([short]="D" [long]="DEBUG" [arg]="::" [default]="0" [handler]="" [help]="set the debug level to <arg>")'
-options_cfg[help]='([short]="h" [long]="help" [arg]="" [default]="" [handler]="usage" [help]="show help")'
-options_cfg[query]='([short]="" [long]="query" [arg]=":" [default]="" [handler]="" [help]="set the query string to <arg>")'
+options_cfg[logfile]='(
+  [short]="L" 
+  [long]="LOGFILE" 
+  [arg]=":" 
+  [arg_type]="string" 
+  [default]="/dev/null" 
+  [handler]="" 
+  [help]="set the name of the logfile"
+)'
+options_cfg[debug]='([short]="D" [long]="DEBUG" [arg]="::" [arg_type]="int" [default]="0" [handler]="" [help]="set the debug level")'
+options_cfg[help]='([short]="h" [long]="help" [arg]="" [arg_type]="" [default]="" [handler]="usage" [help]="show help")'
+options_cfg[query]='([short]="" [long]="query" [arg]=":" [arg_type]="string"  [default]="" [handler]="" [help]="set the query string")'
 
 usage() 
 {
@@ -52,32 +60,40 @@ function flags_help {
     local short="${entry[short]}"
     local long="${entry[long]}"
     local arg="${entry[arg]}"
+    local arg_type="${entry[arg_type]}"
+    local default="${entry[default]}"
     local help="${entry[help]}"
+          
+    [ -z "$arg_type" ] && arg_type="arg"
 
-    local flag
+    local flag 
 
     if [ -n "$help" ]; then
       local help_key=$(printf "%02d" $ctr)
       if [ -n "$short" ]; then 
-        #help_key="${short,,}${help_key}"
         help_key="${short}${help_key}"
-        ##help_key="${help_key,,}"
-
-	flag="-$short"
+	flag="  -$short"
 	[ -n "$long" ] && flag="$flag, --${long}"
       else
         if [ -n "$long" ]; then 
-          #help_key="${long:0:1}"
           help_key="${long:0:1}${help_key}"
-          #help_key="${help_key,,}"
-
-	  flag="    --${long}"
+	  flag="      --${long}"
 	fi
       fi
       if [ -n "$flag" ]; then 
-          [ -n "$arg" ] && flag="$flag <arg>"
-	  [ "$arg" = '::' ] && flag="$flag (optional)"
-	  flag="$flag\n    $help\n\n"
+          [ -n "$arg" ] && flag="$flag <$arg_type>"
+	  flag="$flag                                        "
+	  flag=${flag:0:38}
+	  flag="$flag$help"
+
+	  local remark second
+	  second=""
+	  remark=""
+	  [ -n "$default" ] && remark="default \"$default\""
+	  [ "$arg" = '::' ] && remark="$remark, optional"
+	  [ -n "$remark" ] && second="                                      ($remark)\n"
+
+	  flag="$flag\n$second"
           help_key="${help_key,,}"
 	  flags["$help_key"]="$flag"
       fi
@@ -90,7 +106,7 @@ function flags_help {
     help_args="$help_args$(printf '%s' "${flags[$k]}")"
   done
  
-  [ -n "$help_args" ] && help_args="flags:\n\n$help_args"
+  [ -n "$help_args" ] && help_args="flags:\n$help_args"
   echo "$help_args"
 }
 
@@ -151,7 +167,6 @@ parse_options() {
     [ "$opt" = '--' ] && break
     [ ! "${switch[$opt]+x}" ] && echo "abort: unknown option $opt" && exit 1
     local -A item="${switch[$opt]}"
-    declare -p item
     local key="${item[key]}"
     local arg="${item[arg]}"
     local handler="${item[handler]}"
@@ -162,13 +177,13 @@ parse_options() {
   echo "$@"
 }
 
-
 declare -A options
 declare -A switch
 
 usage_flags="$(flags_help options_cfg)"
 
 parse_options_config options_cfg switch
+declare -p switch
 parse_options switch options "$@" 
 
 declare -p options
