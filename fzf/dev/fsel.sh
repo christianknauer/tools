@@ -9,42 +9,124 @@
 script=${0##*/}
 tempdir=''
 
-declare -A options_cnf=( \
-  [logfile]='([short]="" [long]="LOGFILE" [arg]=":" [default]="/dev/null" [handler]="")'\
-  [debug]='([short]="D" [long]="DEBUG" [arg]=":" [default]="" [handler]="")'
-)
+declare -A options_cfg
+options_cfg[logfile]='([short]="L" [long]="LOGFILE" [arg]=":" [default]="/dev/null" [handler]="" [help]="set the name of the logfile to <arg>")'
+options_cfg[debug]='([short]="D" [long]="DEBUG" [arg]="::" [default]="0" [handler]="" [help]="set the debug level to <arg>")'
+options_cfg[help]='([short]="h" [long]="help" [arg]="" [default]="" [handler]="usage" [help]="show help")'
+options_cfg[query]='([short]="" [long]="query" [arg]=":" [default]="" [handler]="" [help]="set the query string to <arg>")'
 
 function init_options {
-  declare -n cnf="$1"
-  echo "cnf=$cnf"
+  [ "$1" = "cfg" ] || { local -n cfg="$1"; }
+  [ "$2" = "opts" ] || { local -n opts="$2"; }
+  shift; shift
 
-  declare -p cnf
+  local -A switch
+
+  local getopt_oargs
+  local getopt_largs
+
+  local help_args
 
   local key
-  for key in "${!cnf[@]}"; do
-    declare -A entry=${cnf["$key"]}
-    so="${cnf[short]}"
-    lo="${cnf[long]}"
-    de="${cnf[defaut]}"
-    hd="${cnf[handler]}"
-    echo "so=$so"
-    echo "lo=$lo"
-    echo "de=$de"
-    echo "hd=$hd"
+  for key in "${!cfg[@]}"; do
+    declare -A entry=${cfg["$key"]}
+    local short="${entry[short]}"
+    local long="${entry[long]}"
+    local arg="${entry[arg]}"
+    local default="${entry[default]}"
+    local handler="${entry[handler]}"
+    local help="${entry[help]}"
+#    echo "$key"
+#    echo "$short"
+#    echo "$long"
+#    echo "$arg"
+#    echo "$default"
+#    echo "$handler"
+    [ -n "$short" ] && getopt_oargs="${getopt_oargs}${short}${arg}"
+    [ -n "$long" ] && getopt_largs="${getopt_largs}${long}${arg},"
+
+    if [ -n "$help" ]; then
+      local help_key
+      if [ -n "$short" ]; then 
+        help_key="${short,,}"
+	help_args="$help_args($help_key)-$short"
+	if [ -n "$arg" ]; then
+	  help_args="$help_args <arg>"
+	  [ "$arg" = '::' ] && help_args="$help_args (optional)"
+	fi 
+	if [ -n "$long" ]; then
+	  help_args="$help_args or --${long}"
+          [ -n "$arg" ] && help_args="$help_args <arg>"
+	fi
+	help_args="$help_args\n    $help\n\n"
+      else
+        if [ -n "$long" ]; then 
+          help_key="${long:0:1}"
+          help_key="${help_key,,}"
+	  help_args="$help_args($help_key)--${long}"
+	  if [ -n "$arg" ]; then
+	    help_args="$help_args <arg>"
+	    [ "$arg" = '::' ] && help_args="$help_args (optional)"
+	  fi 
+	  help_args="$help_args\n    $help\n\n"
+	fi
+      fi
+    fi
+    # TODO: env vars for init
+    [ -n "$default" ] && opts[$key]="$default"
+
+    local -A item
+    item[arg]="$arg"
+    item[key]="$key"
+    item[handler]="$handler"
+
+    local ser_item="$(declare -p item)"
+    ser_item="${ser_item#"declare -A item="}"
+
+    [ -n "$short" ] && switch[-$short]="$ser_item"
+    [ -n "$long" ] && switch[--$long]="$ser_item"
   done
-  [ -n "$short" ] && short="-o $short"
-  [ -n "$long" ] && long="-long $long"
-  [ -n "$long" ] && long="${long::-1}"
-  echo "$short $long"
+  echo -e "$help_args"
+  [ -n "$getopt_largs" ] && getopt_largs="${getopt_largs::-1}"
+  [ -n "$getopt_oargs" ] && getopt_oargs="${getopt_oargs}"
+#  echo "$getopt_oargs $getopt_largs"
+#  declare -p switch
+
+  local opt err ec
+  
+#getopt -o ${getopt_oargs} -l ${getopt_largs} -- "$@"
+#  catch opt err getopt -o hq: --long DEBUG:,help,LOGFILE:,query: -- "$@"; ec=$?
+  catch opt err getopt -o ${getopt_oargs} -l ${getopt_largs} -- "$@"; ec=$?
+
+  [ $ec -eq 1 ] && { echo >&2 "abort: $err"; } && exit 1
+#  echo $opt
+  eval set -- "$opt"
+  echo "$@"
+  while true; do
+    local opt="$1"
+    [ -z "$opt" ] && echo "abort: option parsing error" && exit 1
+    shift
+    [ "$opt" = '--' ] && break
+    [ ! "${switch[$opt]+x}" ] && echo "abort: unknown option $opt" && exit 1
+    local -A item="${switch[$opt]}"
+    declare -p item
+    local key="${item[key]}"
+    local handler="${item[handler]}"
+    [ -n "$handler" ] && $handler "$key"
+    local arg="${item[arg]}"
+    [ -n "$arg" ] && opts[$key]="$1" && shift
+   done
+ 
+
 }
 
-declare -A Xoptions_cnf=( \
+declare -A Xoptions_cfg=( \
 	[logfile]="-L:|--LOGFILE:|/dev/null" \
 	[debug]="-D:|--DEBUG|/dev/null" \
 )
 
 function Xinit_options {
-  [ "$1" = "cnf" ] || { declare -n cnf; cnf="$1"; }
+  [ "$1" = "cfg" ] || { declare -n cfg; cfg="$1"; }
 
   local short
   local long
@@ -53,8 +135,8 @@ function Xinit_options {
   local pattern='^([^\|]*)\|([^\|]*)\|(.*)$'
 
   local key
-  for key in "${!cnf[@]}"; do
-    val="${cnf[$key]}"
+  for key in "${!cfg[@]}"; do
+    val="${cfg[$key]}"
     echo "$key=$val"
     if [[ "${val}" =~ ${pattern} ]]; then
     so="${BASH_REMATCH[1]}"
@@ -76,9 +158,9 @@ function Xinit_options {
 
 declare -A options
 options[console]='/dev/null'
-options[logfile]='/dev/null'
-options[debug]=0
-options[mute]=0
+#options[logfile]='/dev/null'
+#options[debug]=0
+#options[mute]=0
 
 # init & exit code
 function startup {
@@ -181,6 +263,8 @@ main()
 {
   echo "main"
 
+  return
+
   if [ ! "$1" = '++' ]; then
     # first run
     echo "first time"
@@ -199,8 +283,9 @@ main()
 }
 
 check_apps fzf getopt || exit 1
-declare -p options_cnf
-init_options options_cnf
+
+init_options options_cfg options "$@" 
+declare -p options
 
 startup "$@" || exit 1
 
