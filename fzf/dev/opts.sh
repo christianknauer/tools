@@ -3,6 +3,10 @@
 (return 0 2>/dev/null) && __sourced=1
 [ -n "$__sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
 
+usage_flags=''
+usage_envvars=''
+usage_cfgfile=''
+
 # helper functions
 function catch() {
     {
@@ -27,8 +31,24 @@ options_cfg[logfile]='(
   [handler]="" 
   [help]="set the name of the logfile"
 )'
-options_cfg[debug]='([short]="D" [long]="DEBUG" [arg]="::" [arg_type]="int" [default]="0" [handler]="" [help]="set the debug level")'
-options_cfg[help]='([short]="h" [long]="help" [arg]="" [arg_type]="" [default]="" [handler]="usage" [help]="show help")'
+options_cfg[debug]='(
+  [short]="D" 
+  [long]="DEBUG" 
+  [arg]="::" 
+  [arg_type]="int" 
+  [default]="0" 
+  [handler]="" 
+  [help]="set the debug level"
+)'
+options_cfg[help]='(
+  [short]="h"
+  [long]="help"
+  [arg]=""
+  [arg_type]=""
+  [default]=""
+  [handler]="usage"
+  [help]="show help"
+)'
 options_cfg[query]='([short]="" [long]="query" [arg]=":" [arg_type]="string"  [default]="" [handler]="" [help]="set the query string")'
 
 usage() 
@@ -40,7 +60,7 @@ usage()
   read -r -d '' usage <<EOF
   Usage: $script$flags <query> 
 
-$usage_flags
+$usage_flags$usage_envvars$usage_cfgfile
 EOF
   echo -e "$usage" 1>&2
   exit 0
