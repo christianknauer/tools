@@ -98,7 +98,8 @@ function init_config {
   local key; for key in "${!opts_cfg[@]}"; do
     declare -A data=${opts_cfg["$key"]}
     local init="${data[init]}"
-    [ -n "${init}" ] && opts["$key"]="${data[init]}"
+    [ "${opts[$key]+x}" ] && continue
+    [ -n "${init}" ] && opts["$key"]="${data[init]}" && echo "$key set to default value $init"
   done
 }
 
@@ -301,26 +302,34 @@ parse_options() {
 
   while true; do
     local opt="$1"
-    [ -z "$opt" ] && echo "abort: option parsing error" && exit 1
+    [ -z "$opt" ] && echo "abort: option parsing error" && return 1
     shift
     [ "$opt" = '--' ] && break
-    [ ! "${option_table[$opt]+x}" ] && echo "abort: unknown option $opt" && exit 1
+    [ ! "${option_table[$opt]+x}" ] && echo "unknown option $opt" && continue
     local -A item="${option_table[$opt]}"
     local key="${item[key]}"
     local arg="${item[arg]}"
     local handler="${item[handler]}"
-    [ -n "$handler" ] && $handler "$key"
+    [ -n "$handler" ] && $handler "$key" && continue
 
 #   [ -n "$arg" ] && opts[$key]="$1" && shift
-    [ "$arg" = 'req' ] && opts[$key]="$1" && shift
-
-    if [[ "$arg" =~ ^opt:(.*)$ ]]; then
-       opts[$key]="${BASH_REMATCH[1]}"
-       [ -n "$1" ] && opts[$key]="$1"
-       shift
+#    [ "$arg" = 'req' ] && opts[$key]="$1" && shift
+    if [ "$arg" = 'req' ]; then
+      [ "${opts[$key]+x}" ] && echo "option \"$key\" overridden"
+      opts[$key]="$1" 
+      shift
+    elif [[ "$arg" =~ ^opt:(.*)$ ]]; then
+      [ "${opts[$key]+x}" ] && echo "option \"$key\" overridden"
+      opts[$key]="${BASH_REMATCH[1]}"
+      [ -n "$1" ] && opts[$key]="$1"
+      shift
+    elif [ -z "$arg" ]; then
+      :
+    else
+      echo "unknown flag mode \"$arg\" for \"$key\"" && continue
     fi
 
-   done
+  done
   # rest of argv
   echo "$@"
 }
@@ -341,13 +350,19 @@ declare -A option_table="$(parse_options_config options_cfg)"
 #declare -p option_table
 # breakpoint
 
-init_config options_cfg options "$@" 
 # read_config options $file
 # config_from_env options
 
+
+parse_options option_table options "$@"
+# doesn't work! the subshell get's its own options array
+#args="$(parse_options option_table options "$@")"
+
 declare -p options
 
-parse_options option_table options "$@" 
+# last thing is set default value to values not already set
+init_config options_cfg options "$@" 
 declare -p options
 
+echo "remainder of argv: \"$args\""
 # EOF
