@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
 (return 0 2>/dev/null) && __sourced=1
-[ -n "$__sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
+[ -n "$__sourced" ] && echo >&2 "abort: this script cannot be sourced" >&2 && return 1
 
 source debug.lib.sh
 
@@ -112,6 +112,32 @@ EOF
   exit 0
 }
 
+set_options() {
+
+  [ "$1" = "option_table" ] || { local -n option_table="$1"; }
+  [ "$2" = "opts" ] || { local -n opts="$2"; }
+
+  local key; for key in "${!option_table[@]}"; do
+    declare -A data=${option_table["$key"]}
+    local init="${data[init]}"
+    local modes="${data[modes]}"
+    if [[ "$modes" =~ f ]]; then
+      :
+    fi
+    if [[ "$modes" =~ e ]]; then
+      local env="${data[env]}"
+      [ -z "$env" ] && echo >&2 "key \"$key\" error: has e-mode but no env var set" && continue
+      [ -z "${!env}" ] && echo >&2 "key \"$key\" - env var $env not set" && continue
+      [ "${opts[$key]+x}" ] && echo >&2 -n "key \"$key\" not empty, overwriting by " || echo >&2 -n "key \"$key\" set to " 
+      opts["$key"]="${!env}" 
+      echo >&2 "env var $env (${!env})"
+    fi
+    # finally an unset key is given the init value (if defined)
+    [ "${opts[$key]+x}" ] && continue
+    [ -n "${init}" ] && opts["$key"]="${data[init]}" && echo >&2 "$key set to default value $init"
+  done
+}
+
 function init_config {
   [ "$1" = "opts_cfg" ] || { local -n opts_cfg="$1"; }
   [ "$2" = "opts" ] || { local -n opts="$2"; }
@@ -120,7 +146,7 @@ function init_config {
     declare -A data=${opts_cfg["$key"]}
     local init="${data[init]}"
     [ "${opts[$key]+x}" ] && continue
-    [ -n "${init}" ] && opts["$key"]="${data[init]}" && echo "$key set to default value $init"
+    [ -n "${init}" ] && opts["$key"]="${data[init]}" && echo >&2 "$key set to default value $init"
   done
 }
 
@@ -251,12 +277,6 @@ function generate_flags_help {
   echo "$result"
 }
 
-has_env_mode() {
-  local modes="$1"
-  [[ "$modes" =~ e ]] && return 0
-  return 1
-}
-
 parse_options_config_for_env () {
   [ "$1" = "cfg" ] || { local -n cfg="$1"; }
   if [ -z "$2" ]; then
@@ -266,15 +286,19 @@ parse_options_config_for_env () {
   fi
 
   local key; for key in "${!cfg[@]}"; do
+
     declare -A data=${cfg["$key"]}
     local env="${data[env]}"
     local modes="${data[modes]}"
     local init="${data[init]}"
-    
-    [[ "$modes" =~ e ]] && [ -z "$env" ] && echo "$key: env var name no env given, computing" && env="CONF_${script_stem^^}_${key^^}"
+
+    [[ "$modes" =~ e ]] && [ -z "$env" ] && env="CONF_${script_stem^^}_${key^^}" && echo >&2 "key \"$key\": no env var name given, computed as $env" 
+
+    [[ ! "$modes" =~ f ]] && [[ ! "$modes" =~ e ]] && [ -z "$init" ] && echo >&2 "key \"$key\": no env var setting, no file setting, no init value, skipping" && continue
 
     local -A item
-    item[env]="$env"
+    unset item[env]
+    [ -n "$env" ] && item[env]="$env"
     item[init]="$init"
     item[modes]="$modes"
 
@@ -283,11 +307,10 @@ parse_options_config_for_env () {
     option_table["$key"]="$ser_item"
   done
 
-declare -p option_table
-#  local retval="$(declare -p option_table)"
-#  echo "${retval#"declare -A option_table="}"
+#declare -p option_table
+  local retval="$(declare -p option_table)"
+  echo "${retval#"declare -A option_table="}"
 }
-
 
 parse_options_config () {
   [ "$1" = "cfg" ] || { local -n cfg="$1"; }
@@ -363,10 +386,10 @@ parse_options() {
 
   while true; do
     local opt="$1"
-    [ -z "$opt" ] && echo "abort: option parsing error" && return 1
+    [ -z "$opt" ] && echo >&2 "abort: option parsing error" && return 1
     shift
     [ "$opt" = '--' ] && break
-    [ ! "${option_table[$opt]+x}" ] && echo "unknown option $opt" && continue
+    [ ! "${option_table[$opt]+x}" ] && echo >&2 "unknown option $opt" && continue
     local -A item="${option_table[$opt]}"
     local key="${item[key]}"
     local arg="${item[arg]}"
@@ -376,18 +399,18 @@ parse_options() {
 #   [ -n "$arg" ] && opts[$key]="$1" && shift
 #    [ "$arg" = 'req' ] && opts[$key]="$1" && shift
     if [ "$arg" = 'req' ]; then
-      [ "${opts[$key]+x}" ] && echo "option \"$key\" overridden"
+      [ "${opts[$key]+x}" ] && echo >&2 "option \"$key\" overridden"
       opts[$key]="$1" 
       shift
     elif [[ "$arg" =~ ^opt:(.*)$ ]]; then
-      [ "${opts[$key]+x}" ] && echo "option \"$key\" overridden"
+      [ "${opts[$key]+x}" ] && echo >&2 "option \"$key\" overridden"
       opts[$key]="${BASH_REMATCH[1]}"
       [ -n "$1" ] && opts[$key]="$1"
       shift
     elif [ -z "$arg" ]; then
       :
     else
-      echo "unknown flag mode \"$arg\" for \"$key\"" && continue
+      echo >&2 "unknown flag mode \"$arg\" for \"$key\"" && continue
     fi
 
   done
@@ -399,7 +422,6 @@ declare -A options
 
 usage_flags="$(generate_flags_help options_cfg)"
 usage_config="$(generate_config_help options_cfg)"
-
 
 # use with reference
 #declare -A option_table
@@ -415,19 +437,19 @@ declare -A option_table="$(parse_options_config options_cfg)"
 # read_config options $file
 # config_from_env options
 
+declare -A config_table="$(parse_options_config_for_env options_cfg)"
+declare -p config_table
+set_options config_table options 
 
-#argv=''
 parse_options option_table options argv "$@"
+echo >&2 "remainder of argv: \"$argv\""
 
 #declare -p options
 
 # last thing is set default value to values not already set
-init_config options_cfg options "$@" 
+#init_config options_cfg options "$@" 
+
 declare -p options
-
-echo "remainder of argv: \"$argv\""
-
-parse_options_config_for_env options_cfg 
 
 
 # EOF
