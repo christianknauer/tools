@@ -35,6 +35,17 @@ options_cfg[secret]='(
 #  [action]="" 
 #  [help]=""
 )'
+options_cfg[envonly]='(
+  [description]="option only for env vars file"
+  [type]="int" 
+  [init]="" 
+  [modes]="e"
+#  [short]="" 
+#  [long]="" 
+#  [arg]="" 
+#  [action]="" 
+#  [help]=""
+)'
 # the map key is the name of the option
 options_cfg[logfile]='(
   # description of the option 
@@ -116,15 +127,21 @@ set_options() {
 
   [ "$1" = "option_table" ] || { local -n option_table="$1"; }
   [ "$2" = "opts" ] || { local -n opts="$2"; }
+  local mode="$3"
+  [ -z "$mode" ] && mode='ef'
+
+  echo >&2 "set_options ($mode) ------------------------------------------ <<<"
 
   local key; for key in "${!option_table[@]}"; do
     declare -A data=${option_table["$key"]}
     local init="${data[init]}"
     local modes="${data[modes]}"
-    if [[ "$modes" =~ f ]]; then
+    # set by ini file
+    if [[ "$mode" =~ f && "$modes" =~ f ]]; then
       :
     fi
-    if [[ "$modes" =~ e ]]; then
+    # set by environment var
+    if [[ "$mode" =~ e && "$modes" =~ e ]]; then
       local env="${data[env]}"
       [ -z "$env" ] && echo >&2 "key \"$key\" error: has e-mode but no env var set" && continue
       [ -z "${!env}" ] && echo >&2 "key \"$key\" - env var $env not set" && continue
@@ -132,22 +149,16 @@ set_options() {
       opts["$key"]="${!env}" 
       echo >&2 "env var $env (${!env})"
     fi
-    # finally an unset key is given the init value (if defined)
-    [ "${opts[$key]+x}" ] && continue
-    [ -n "${init}" ] && opts["$key"]="${data[init]}" && echo >&2 "$key set to default value $init"
+    # set default values
+    if [[ "$mode" =~ d ]]; then
+      # finally an unset key is given the init value (if defined)
+      [ -z "$init" ] && echo >&2 "$key does not define an init value" && continue
+      [ "${opts[$key]+x}" ] && echo >&2 "$key already has a value" && continue
+      [ -n "$init" ] && opts["$key"]="${data[init]}" && echo >&2 "$key set to default value $init"
+    fi
   done
-}
 
-function init_config {
-  [ "$1" = "opts_cfg" ] || { local -n opts_cfg="$1"; }
-  [ "$2" = "opts" ] || { local -n opts="$2"; }
-
-  local key; for key in "${!opts_cfg[@]}"; do
-    declare -A data=${opts_cfg["$key"]}
-    local init="${data[init]}"
-    [ "${opts[$key]+x}" ] && continue
-    [ -n "${init}" ] && opts["$key"]="${data[init]}" && echo >&2 "$key set to default value $init"
-  done
+  echo >&2 "set_options ($mode) ========================================== >>>"
 }
 
 function generate_config_help {
@@ -439,10 +450,17 @@ declare -A option_table="$(parse_options_config options_cfg)"
 
 declare -A config_table="$(parse_options_config_for_env options_cfg)"
 declare -p config_table
-set_options config_table options 
+
+# set by init file 
+set_options config_table options f
+# set by evn var
+set_options config_table options e
 
 parse_options option_table options argv "$@"
 echo >&2 "remainder of argv: \"$argv\""
+
+# set default values
+set_options config_table options d
 
 #declare -p options
 

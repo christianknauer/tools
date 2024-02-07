@@ -1,4 +1,10 @@
-# https://unix.stackexchange.com/questions/413878/json-array-to-bash-variables-using-jq
+#!/usr/bin/env bash
+# shellcheck shell=bash
+
+(return 0 2>/dev/null) && __sourced=1
+[ -n "$__sourced" ] && echo >&2 "abort: this script cannot be sourced" >&2 && return 1
+
+source ini.lib.sh || exit 1
 
 cat <<EOF > file.ini
 # header bla
@@ -18,70 +24,10 @@ cat <<EOF > file.ini
 # EOF
 EOF
 
-serialize_array_to_ini_string()
-{
-  [ "$1" = "arr" ] || { declare -n arr; arr="$1"; }
-
-  local res=""
-  local key
-  for key in "${!arr[@]}"; do
-    val="${arr[$key]}"
-    pkey="${key//\"/\\\\\"}"
-    pkey="${pkey//=/\\\\=}"
-    pval="${val//\"/\\\\\"}"
-    pval="${pval//=/\\\\=}"
-    res+="\"$pkey\"=\"$pval\"\n"
-  done
-  echo "$res"
-}
-
-read_array_from_ini_file()
-{
-  [ "$1" = "arr" ] || { declare -n arr; arr="$1"; }
-  local ini_file="$2"
-
-  #local sec=""
-
-  while IFS="\n" read -r kv; do
-
-    kv_tmp="${kv//\\\"/_}"
-    kv_tmp="${kv_tmp//\\=/_}"
-
-    local sec_pattern='^\[(.+)\]$'
-    local cmt_pattern='^#(.*)$|^\s*$'
-    local kv_pattern='^"([^="]+)"="([^="]*)"$'
-
-    if [[ "${kv}" =~ ${sec_pattern} ]]; then
-      # no function currently
-      #sec="${BASH_REMATCH[1]}"
-      :
-    elif [[ "${kv}" =~ ${cmt_pattern} ]]; then
-      :
-    elif [[ "${kv_tmp}" =~ ${kv_pattern} ]]; then
-      key="${BASH_REMATCH[1]}"
-      value="${BASH_REMATCH[2]}"
-    
-      keyi=${kv_tmp%%$key*}
-      vali=${kv_tmp%%$value*}
-
-      kv_raw="${kv//\\\"/\"}"
-      kv_raw="${kv_raw//\\=/=}"
-      key="${kv_raw:${#keyi}:${#key}}"
-      value="${kv_raw:${#vali}:${#value}}"
-
-      [ "${arr[$key]+x}" ] && echo "$key duplicate detected"
-      arr["$key"]="$value"
-    else
-      echo "info: ignoring malformed line $kv" 
-    fi
-
-  done < <(cat "$ini_file")
-}
-
 unset myarray
 typeset -A myarray
 
-read_array_from_ini_file myarray file.ini
+ini::read_array_from_file myarray file.ini
 # show the array definition
 typeset -p myarray
 
@@ -90,5 +36,13 @@ echo "URL = '${myarray[U\"R=L]}'"
 echo "CREATED = '${myarray[CREATED]}'"
 echo "pi = '${myarray[pi]}'"
 
-copy="$(serialize_array_to_ini_string myarray)"
+copy="$(ini::serialize_array_to_string myarray)"
 echo -e "$copy" > copy.ini
+
+declare -A options_cfg
+options_cfg[just a key]='i am just a value'
+options_cfg[secret]='([description]="secret option only for the ini file" [type]="string" [init]="topsecret" [modes]="([dumb]="ass" [top]="bottom" [deeper]="single" [x]=\"( [y]=\"1\" )\" )" [one more]="meaningless")'
+options_cfg[envonly]='([description]="option only for env vars file" [type]="int" [init]="" [modes]="e")'
+declare -p options_cfg
+echo -e "$(ini::serialize_array_to_string2 options_cfg)"
+
