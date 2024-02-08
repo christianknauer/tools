@@ -22,26 +22,15 @@ ini::create_argname() {
 
 ini::get_dict_from_dict() {
   [ "$1" = "dict" ] || { local -n dict; dict="$1"; }
-  local key="$2"
-  [ "$3" = "out" ] || { local -n out; out="$3"; }
-  echo ${dict["$key"]}
-  out=${dict["$key"]}
-  return
-
+  [ "$2" = "out" ] || { local -n out; out="$2"; }
+  local key="$3"
   local -A res=${dict["$key"]}
-  declare -p res
-  #out=${dict["$key"]}
-
-  #local LIST="$(declare -p res 2>/dev/null)"
-  local LIST="${dict["$key"]}"
-  [[ "$LIST" ]] && out+=${LIST}
-
+  # adding the elements one-by-one
+  # there should be a nicer way to do that ...
+  local k; for k in "${!res[@]}"; do
+    out["$k"]="${res[$k]}"
+  done
   return
-  declare -A serialized=${dict["$key"]}
-  serialized="${serialized#declare -A *=}"
-  echo "${serialized}"
-  #declare -p serialized
-  #res="${serialized}"
 }
 
 ini::add_dict_to_dict() {

@@ -77,8 +77,8 @@ ini::add_dict_to_dict dall 'first' fdict
 #declare -p dall
 
 declare -A resu
-ini::get_dict_from_dict dall 'first' resu
-declare -p resu
+ini::get_dict_from_dict dall resu 'first' 
+#declare -p resu
 
-echo -e -n "$(ini::serialize_array_to_string res)"
+echo -e -n "$(ini::serialize_array_to_string resu)"
 #echo -e -n "$(ini::serialize_array_to_string dall)"
