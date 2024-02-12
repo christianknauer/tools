@@ -52,8 +52,9 @@ echo -e -n "$(ini::array_to_json resu)" > resu.json
 resu_string=$(cat resu.json)
 
 declare -A resu2
-suffix=""
-ini::json_to_array resu2 suffix "${resu_string}"
+suffix=''
+lineno=0
+ini::json_to_array resu2 suffix lineno "${resu_string}"
 echo -e -n "$(ini::array_to_json resu2)" 
 #rm resu.json
 

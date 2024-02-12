@@ -128,15 +128,16 @@ ini::add_array_to_dict() {
 ini::json_to_array() {
   [ "$1" = "arr" ] || { declare -n arr; arr="$1"; }
   [ "$2" = "suffix" ] || { declare -n suffix; suffix="$2"; }
-  local rest="$3"
-  local line="$4"
-  local state="$5"
-  local depth="$6"
+  [ "$3" = "lineno" ] || { declare -n lineno; lineno="$3"; }
+  local rest="$4"
+  local line="$5"
+  local state="$6"
+  local depth="$7"
 
   [ -z "$depth" ] && depth=0
-#  [ -z "$state" ] && state='start'
+  [ -z "$state" ] && state='start'
 
-  echo -n "${depth}:" >&2 
+  [ -n "$line" ] && echo -n "${lineno}(${depth}):" >&2 
 #  ini::serialize arr  >&2  
   local nl=$'\n'
 
@@ -159,21 +160,21 @@ ini::json_to_array() {
 
     echo >&2 "dict root symbol detected"
 
-    ini::json_to_array arr suffix "$rest" "$line" "dict" "$depth"
+    ini::json_to_array arr suffix lineno "$rest" "$line" "dict" "$depth"
   elif [[ "${line}" =~ ${arr_root_pattern} ]]; then
     # no function currently
     line="${BASH_REMATCH[2]}"
 
     echo >&2 "array root symbol detected"
 
-    ini::json_to_array arr suffix "$rest" "$line" "array" "$depth"
+    ini::json_to_array arr suffix lineno "$rest" "$line" "array" "$depth"
   elif [[ "${line}" =~ ${cmt_pattern} ]]; then
     # read a comment line - discard line
     line="${BASH_REMATCH[1]}"
 
     echo >&2 "read a comment line - discard line"
 
-    ini::json_to_array arr suffix "$rest" "$line" "$state" "$depth"
+    ini::json_to_array arr suffix lineno "$rest" "$line" "$state" "$depth"
   elif [[ "${line}" =~ ${dict_end_pattern} ]]; then
     local indent="${BASH_REMATCH[1]}"
     line="${BASH_REMATCH[2]}"
@@ -194,14 +195,14 @@ ini::json_to_array() {
 
     local -n data="$(ini::create_argname)"
     local -A "${!data}"
-    ini::json_to_array "${!data}" suffix "$rest" "$line" "dict" "$((depth+1))"
+    ini::json_to_array "${!data}" suffix lineno "$rest" "$line" "dict" "$((depth+1))"
     ini::add_array_to_dict arr "$key" "${!data}"
  
 #    local -A data
 #    ini::json_to_array data suffix "$rest" "$line" "dict" "$((depth+1))"
 #    ini::add_array_to_dict arr "$key" data
 
-    ini::json_to_array arr suffix "$suffix" "" "$state" "$depth"
+    ini::json_to_array arr suffix lineno "$suffix" "" "$state" "$depth"
   elif [[ "${line}" =~ ${dict_entry_pattern} ]]; then
     # read a key value assignment
     local indent="${BASH_REMATCH[1]}"
@@ -216,7 +217,7 @@ ini::json_to_array() {
     [ "${arr[$key]+___x}" ] && echo >&2 "$key duplicate detected"
     arr["$key"]="$val"
 
-    ini::json_to_array arr suffix "$rest" "$line" "$state" "$depth"
+    ini::json_to_array arr suffix lineno "$rest" "$line" "$state" "$depth"
   elif [[ "${line}" =~ ${arr_end_pattern} ]]; then
     local indent="${BASH_REMATCH[1]}"
     line="${BASH_REMATCH[2]}"
@@ -237,14 +238,14 @@ ini::json_to_array() {
 
     local -n data="$(ini::create_argname)"
     local -a "${!data}"
-    ini::json_to_array "${!data}" suffix "$rest" "$line" "array" "$((depth+1))" 
+    ini::json_to_array "${!data}" suffix lineno "$rest" "$line" "array" "$((depth+1))" 
     ini::add_array_to_dict arr "$key" "${!data}"
 
 #     local -a data
 #    ini::json_to_array data suffix "$rest" "$line" "array" "$((depth+1))"
 #    ini::add_array_to_dict arr "$key" data
 
-    ini::json_to_array arr suffix "$suffix" "" "$state" "$depth" 
+    ini::json_to_array arr suffix lineno "$suffix" "" "$state" "$depth" 
    elif [[ "${line}" =~ ${arr_entry_pattern} ]]; then
     # read an array entry assignment
     local indent="${BASH_REMATCH[1]}"
@@ -257,7 +258,7 @@ ini::json_to_array() {
 
     arr+=("$val")
     
-    ini::json_to_array arr suffix "$rest" "" "$state" "$depth" 
+    ini::json_to_array arr suffix lineno "$rest" "" "$state" "$depth" 
   else
     # the line read so far is not telling us what to do
     # we try to read one more line from the rest and 
@@ -266,11 +267,14 @@ ini::json_to_array() {
     if [[ "${rest}" =~ ${nl_pattern} ]]; then
       line="${line}${BASH_REMATCH[1]}"
       rest="${BASH_REMATCH[2]}"
-      ini::json_to_array arr suffix "$rest" "$line" "$state" "$depth" 
+      ((lineno++))
+      ini::json_to_array arr suffix lineno "$rest" "$line" "$state" "$depth" 
     else
       line="$line$rest"
-      [ -n "$line" ] && ini::json_to_array arr suffix "" "$line" "$state" "$depth" && return
-      echo >&2 "string processed fully"
+      ((lineno++))
+      [ -n "$line" ] && ini::json_to_array arr suffix lineno "" "$line" "$state" "$depth" && return
+      [ ! $state = "start" ] && echo >&2 "ERROR: premature end of data, not all arrays closed properly" && exit 1
+#      echo >&2 "string processed fully"
     fi
   fi
 }
