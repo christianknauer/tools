@@ -147,6 +147,8 @@ ini::json_to_array() {
   local dict_start_pattern='(\s*)"([^:]+)": \{(.*)'
   local dict_end_pattern='(\s*)\},*(.*)'
   local dict_entry_pattern='(\s*)"([^:]+)": "([^"]+)",*(.*)'
+  # maybe we need to parse this in several steps?
+#  local dict_entry_pattern='(\s*)"([^:]+)":\s+"(.*)'
 
   local arr_root_pattern='^\[(.*)'
   local arr_start_pattern='(\s*)"([^:]+)": \[(.*)'
@@ -210,9 +212,9 @@ ini::json_to_array() {
     local val="${BASH_REMATCH[3]}"
     line="${BASH_REMATCH[4]}"
 
-    [ ! $state = "dict" ] && echo >&2 "ERROR: need a dict to add a key value pair" && exit 1
-
     echo >&2 "read a key value assignment (indent=${#indent}, key=$key, val=$val, rest=$line)"
+
+    [ ! $state = "dict" ] && echo >&2 "ERROR: need a dict to add a key value pair" && exit 1
 
     [ "${arr[$key]+___x}" ] && echo >&2 "$key duplicate detected"
     arr["$key"]="$val"
@@ -252,9 +254,9 @@ ini::json_to_array() {
     local val="${BASH_REMATCH[2]}"
     line="${BASH_REMATCH[3]}"
 
-    [ ! $state = "array" ] && echo >&2 "ERROR: need an array to add a keyless value" && exit 1
-
     echo >&2 "read an array entry assignment (indent=${#indent}, val=$val, rest=$line)"
+
+    [ ! $state = "array" ] && echo >&2 "ERROR: need an array to add a keyless value" && exit 1
 
     arr+=("$val")
     
