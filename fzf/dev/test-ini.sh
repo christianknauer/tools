@@ -4,57 +4,38 @@
 (return 0 2>/dev/null) && __sourced=1
 [ -n "$__sourced" ] && echo >&2 "abort: this script cannot be sourced" >&2 && return 1
 
+source dicts.lib.sh || exit 1
 source ini.lib.sh || exit 1
 
-declare -A dall
+cat <<EOF > file.ini
+# header bla
+"pi"="3.14"
 
-declare -A dict1; dict1[a1]="a1"; dict1[b1]="b1"
-declare -A dict2; dict2[a2]="a2"; dict2[b2]="b2"
-declare -A dict3; dict3[a3]="a3"; dict3[b3]="b3"
-ini::add_entry_to_dict dict2 'c2' dict3
-ini::add_entry_to_dict dict1 'c1' dict2
+[main]
+"U\"R\=L"="exam\"ple.com"
+"CREATED"="10/22/2017"
+"MY_OPTION_"="  10/22/2017"
 
-declare -A fdict
-fdict[a]="a"
-fdict[b]="b"
+# help bla
+[help]
+"x"="17"
+"y"="12"
 
-declare -A sdict
-sdict[x]="x"
-sdict[y]="y"
+"pi"="3.14"
+# EOF
+EOF
 
-declare -a arr 
-arr+=('1st')
-arr+=('2nd')
+unset myarray
+typeset -A myarray
 
-ini::add_entry_to_dict sdict 'xxx' dict1
-ini::add_entry_to_dict sdict 'xxx2' dict1
-ini::add_entry_to_dict sdict 'arr' arr
+ini::ini_to_dict myarray file.ini
+# show the array definition
+typeset -p myarray
 
-ini::add_entry_to_dict fdict '2nd' sdict
+# make use of the array variables
+echo "URL = '${myarray[U\"R=L]}'"
+echo "CREATED = '${myarray[CREATED]}'"
+echo "pi = '${myarray[pi]}'"
 
-ini::add_entry_to_dict fdict 'normal' 'seppl'
-
-ini::add_entry_to_dict dall 'first' fdict
-
-declare -p fdict
-
-declare -A resu
-
-# get 'first' entry from dall and add it to resu
-ini::get_entry_from_dict dall resu 'first' 
-declare -p resu
-echo -e -n "$(ini::array_to_json resu)"
-
-# get 'arr' entry from sdict and add it to resu
-ini::get_entry_from_dict sdict resu 'arr' 
-declare -p resu
-echo -e -n "$(ini::array_to_json resu)" > resu.json
-resu_string=$(cat resu.json)
-
-declare -A resu2
-suffix=''
-lineno=0
-ini::json_to_array resu2 suffix lineno "${resu_string}"
-echo -e -n "$(ini::array_to_json resu2)" 
-#rm resu.json
-
+echo -e -n "$(dicts::dict_to_json myarray)" 
+#echo -e -n "$(ini::serialize_array_to_string options_cfg)"

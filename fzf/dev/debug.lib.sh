@@ -1,8 +1,10 @@
-#!/bin/bash
-#
+#!/bin/env bash
+# shellcheck shell=bash
+
 # Little Debug Tools
 # see https://github.com/uudruid74/bashTheObjects/blob/master/static/debug.lib.sh
-#
+
+[ -n "${DEBUG_LIB}" ] && return; DEBUG_LIB=0; # pragma once
 
 # Save this
 OIFS=$IFS

@@ -3,6 +3,8 @@
 (return 0 2>/dev/null) && __sourced=1
 [ -n "$__sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
 
+source helpers.lib.sh
+
 #set -eu
 
 # globals
@@ -185,14 +187,6 @@ trap 'echo "$script: ERR at line $LINENO" >&2' ERR
 
 check_app() { hash "$1" 2>/dev/null || { echo >&2 -e "abort: $1 is required"; return 1; } }
 check_apps() { for i in "$@"; do check_app "$i" || return 1; done }
-
-function catch() {
-    {
-        IFS=$'\n' read -r -d '' "${1}";
-        IFS=$'\n' read -r -d '' "${2}";
-        (IFS=$'\n' read -r -d '' _ERRNO_; return ${_ERRNO_});
-    } < <((printf '\0%s\0%d\0' "$(((({ shift 2; "${@}"; echo "${?}" 1>&3-; } | tr -d '\0' 1>&4-) 4>&2- 2>&1- | tr -d '\0' 1>&4-) 3>&1- | exit "$(cat)") 4>&1-)" "${?}" 1>&2) 2>&1)
-}
 
 usage() 
 {
