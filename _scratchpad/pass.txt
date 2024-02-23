@@ -1,0 +1,37 @@
+sudo apt install pass
+
+# ------------------------------------------------------
+# pass init (only needed once)
+# https://gist.github.com/flbuddymooreiv/a4f24da7e0c3552942ff
+
+# use GPG key for email@christianknauer.de
+
+gpg --import ~/.config/keycamp/gpg/0x8554746DE3783FD7.asc
+pass init 8554746DE3783FD7
+# alternative:
+#pass init email@christianknauer.de
+pass git init
+pass insert ubt/mail
+pass git remote add origin git@github.com:christianknauer/pass-store.git
+
+# ------------------------------------------------------
+# to commit run
+pass git push -u --all
+
+# ------------------------------------------------------
+# one each new machine, run:
+gpg --import ~/.config/keycamp/gpg/0x8554746DE3783FD7.asc
+echo "Run the 'trust' command in gpg"
+gpg --edit-key A25BABAF2B01DE9E
+
+git clone git@github.com:christianknauer/pass-store.git ~/.password-store
+
+# ------------------------------------------------------
+# import/backup keepassxc databases to GNU pass
+
+pip3 install pass-import
+export PASSWORD_STORE_ENABLE_EXTENSIONS=true
+export PASSWORD_STORE_EXTENSIONS_DIR="$(pip3 show pass-import|grep "^Location"| sed -e s/^Location:\ //)/usr/lib/password-store/extensions/"
+pass import ~/syncthing/keepassxc/credentials.kdbx -k ~/bunker/keys/keepass/credentials.keyx -p @credentials
+pass import ~/syncthing/keepassxc/passwords.kdbx -k ~/bunker/keys/keepass/passwords.key -p @passwords
+pip3 uninstall pass-import
