@@ -268,6 +268,8 @@ dicts::json_to_dict() {
 dicts::dict_to_json() {
   [ "$1" = "arr" ] || { local -n arr; arr="$1"; }
 
+  [[ "${#arr[@]}" -eq 0 ]] && return 0
+
   local arr_type=$(dicts::get_type "${!arr}")
 
   local depth=$2

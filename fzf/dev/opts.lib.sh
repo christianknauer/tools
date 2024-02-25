@@ -8,17 +8,37 @@
 source helpers.lib.sh
 
 # globals
-script=${0##*/}
-script_stem="${script%.*}"
+
+# private
+__opts__script=''
+__opts__script_stem=''
+
+# functions
+
+# helpers
+opts::create_env_var_name() {
+  local key="$1"
+  [ -z "$key" ] && echo >&2 "abort: expected a key" && exit 1
+  local env="CONF_${__opts__script_stem^^}_${key^^}"
+  # sanitize
+  echo "${env//-/_}"
+}
+ 
+# public
+opts::init() {
+  [ -z "$1" ] && echo >&2 "abort: expected a name" && exit 1
+  __opts__script="${1##*/}"
+  __opts__script_stem="${__opts__script%.*}"
+}
 
 opts::usage() {
   local usage
   local flags
-  [ -n "$usage_flags" ] && flags=" [flags]" && usage_flags="$usage_flags\n"
+  [ -n "$usage_flags" ]   && flags=" [flags]" && usage_flags="$usage_flags\n"
   [ -n "$usage_envvars" ] && usage_envvars="$usage_envvars\n"
 
   read -r -d '' usage <<EOF
-  Usage: $script$flags <query> 
+  Usage: ${__opts__script}$flags <query> 
 
 $usage_flags$usage_envvars$usage_config
 EOF
@@ -29,18 +49,38 @@ EOF
 opts::set_options() {
   [ "$1" = "option_table" ] || { local -n option_table="$1"; }
   [ "$2" = "opts" ] || { local -n opts="$2"; }
-  local mode="$3"
-  [ -z "$mode" ] && mode='ef'
+  [ "$3" = "cfg_file" ] || { local -n cfg_file="$3"; }
+  local mode="$4"
+  [ -z "$mode" ] && mode='fe'
 
   echo >&2 "opts::set_options ($mode) ------------------------------------------ <<<"
 
   local key; for key in "${!option_table[@]}"; do
-    declare -A data=${option_table["$key"]}
+
+    # declare -A data=${option_table["$key"]}
+    local val="${option_table[$key]}"
+    local pattern='^declare -(.) ([^=]*)='; if [[ "${val}" =~ ${pattern} ]]; then
+      local type="${BASH_REMATCH[1]}"
+      val="${val#declare -"${type}" *=}"
+      local -"${type}" data="${val}"
+    else
+      echo >&2 "abort: expected a dictionary" && return 1
+    fi
+
     local init="${data[init]}"
     local modes="${data[modes]}"
     # set by ini file
     if [[ "$mode" =~ f && "$modes" =~ f ]]; then
-      :
+	if [ ! "${cfg_file[$key]+x}" ]; then
+	  echo >&2 "key \"$key\" - not in config file"
+        else
+	  local def="${cfg_file[$key]}"
+	  echo >&2 "key \"$key\" - found in config file (\"$def\")"
+	  if [ "${opts[$key]+x}" ]; then
+	    echo >&2 -n "key \"$key\" currently not empty, overwriting by \"$def\"" 
+	  fi
+          opts["$key"]="$def" 
+	fi
     fi
     # set by environment var
     if [[ "$mode" =~ e && "$modes" =~ e ]]; then
@@ -54,9 +94,9 @@ opts::set_options() {
     # set default values
     if [[ "$mode" =~ d ]]; then
       # finally an unset key is given the init value (if defined)
-      [ -z "$init" ] && echo >&2 "$key does not define an init value" && continue
-      [ "${opts[$key]+x}" ] && echo >&2 "$key already has a value" && continue
-      [ -n "$init" ] && opts["$key"]="${data[init]}" && echo >&2 "$key set to default value $init"
+      [ -z "$init" ] && echo >&2 "key \"$key\" - does not define an init value" && continue
+      [ "${opts[$key]+x}" ] && echo >&2 "key \"$key\" already has a value - unchanged" && continue
+      [ -n "$init" ] && opts["$key"]="${data[init]}" && echo >&2 "key \"$key\" - set to default value \"$init\""
     fi
   done
 
@@ -73,11 +113,21 @@ opts::generate_config_help() {
   local ctr=0
   local key; for key in "${!opts_cfg[@]}"; do
     ((ctr++))
-    declare -A data=${opts_cfg["$key"]}
+#    declare -A data=${opts_cfg["$key"]}
+    local val="${opts_cfg[$key]}"
+    local pattern='^declare -(.) ([^=]*)='; if [[ "${val}" =~ ${pattern} ]]; then
+      local type="${BASH_REMATCH[1]}"
+      val="${val#declare -"${type}" *=}"
+      local -"${type}" data="${val}"
+    else
+      echo >&2 "abort: expected a dictionary" && return 1
+    fi
+
     local short="${data[short]}"
     local long="${data[long]}"
     local type="${data[type]}"
     local init="${data[init]}"
+    local env="${data[env]}"
     local modes="${data[modes]}"
     local description="${data[description]}"
           
@@ -105,9 +155,17 @@ opts::generate_config_help() {
       fi
       [ -n "$remark" ] && remark="${remark} flag${plural}\n"
 
-      local envvar="conf_${script_stem}_${key}"
-      remark="${remark}${indent}- ${envvar^^} environment variable\n"
-      [ -n "$remark" ] && remark="${indent}overridden by:\n${remark}\n"
+      if [[ "$modes" =~ e ]]; then
+        local envvar="$env"
+	[ -z "$envvar" ] && envvar=$(opts::create_env_var_name "$key")
+        remark="${remark}${indent}- environment variable ${envvar^^}\n"
+      fi
+      if [[ "$modes" =~ f ]]; then
+	local confvar="configuration file entry \"${key}\""
+        remark="${remark}${indent}- ${confvar}\n"
+      fi
+ 
+      [ -n "$remark" ] && remark="${indent}specified by:\n${remark}\n"
       entry="$entry$remark"
 
       help_key="${help_key,,}"
@@ -133,7 +191,22 @@ opts::generate_flags_help() {
   local ctr=0
   local key; for key in "${!opts_cfg[@]}"; do
     ((ctr++))
-    declare -A data=${opts_cfg["$key"]}
+    local val="${opts_cfg[$key]}"
+#    echo >&2 $key
+#    echo >&2 $val
+
+    local pattern='^declare -(.) ([^=]*)='; if [[ "${val}" =~ ${pattern} ]]; then
+      local type="${BASH_REMATCH[1]}"
+      val="${val#declare -"${type}" *=}"
+      local -"${type}" data="${val}"
+#      declare -p data >&2
+    else
+      echo >&2 "abort: expected a dictionary" && return 1
+    fi
+#    data=${opts_cfg["$key"]}
+# local -A data
+    # get "$key" entry from opts_cfg and add it to data
+#    dicts::get_entry_from_dict ${!opts_cfg} data "$key" 
     local short="${data[short]}"
     local long="${data[long]}"
     local arg="${data[arg]}"
@@ -190,53 +263,71 @@ opts::generate_flags_help() {
 }
 
 opts::parse_options_config_for_env () {
-  [ "$1" = "cfg" ] || { local -n cfg="$1"; }
-  if [ -z "$2" ]; then
-    local -A option_table
-  else
-    [ "$2" = "option_table" ] || { local -n option_table="$2"; }
-  fi
+  [ "$1" = "opts_cfg" ] || { local -n opts_cfg="$1"; }
+  local -A option_table
 
-  local key; for key in "${!cfg[@]}"; do
+  local key; for key in "${!opts_cfg[@]}"; do
 
-    declare -A data=${cfg["$key"]}
+    #declare -A data=${cfg["$key"]}
+    local val="${opts_cfg[$key]}"
+    local pattern='^declare -(.) ([^=]*)='; if [[ "${val}" =~ ${pattern} ]]; then
+      local type="${BASH_REMATCH[1]}"
+      val="${val#declare -"${type}" *=}"
+      local -"${type}" data="${val}"
+    else
+      echo >&2 "abort: expected a dictionary" && return 1
+    fi
+
     local env="${data[env]}"
     local modes="${data[modes]}"
     local init="${data[init]}"
 
-    [[ "$modes" =~ e ]] && [ -z "$env" ] && env="CONF_${script_stem^^}_${key^^}" && echo >&2 "key \"$key\": no env var name given, computed as $env" 
+    #[[ "$modes" =~ e ]] && [ -z "$env" ] && env="CONF_${__opts__script_stem^^}_${key^^}" && echo >&2 "key \"$key\": no env var name given, computed as $env" 
+    if [[ "$modes" =~ e ]] && [ -z "$env" ]; then
+      env=$(opts::create_env_var_name "$key")
+      echo >&2 "key \"$key\": no env var name given, computed as $env" 
+    fi
 
     [[ ! "$modes" =~ f ]] && [[ ! "$modes" =~ e ]] && [ -z "$init" ] && echo >&2 "key \"$key\": no env var setting, no file setting, no init value, skipping" && continue
 
     local -A item
     unset item[env]
-    [ -n "$env" ] && item[env]="$env"
-    item[init]="$init"
+    unset item[init]
+    unset item[modes]
+    [ -n "$env" ]  && item[env]="$env"
+    [ -n "$init" ] && item[init]="$init"
     item[modes]="$modes"
 
-    local ser_item="$(declare -p item)"
-    ser_item="${ser_item#"declare -A item="}"
-    option_table["$key"]="$ser_item"
+    dicts::add_entry_to_dict option_table "$key" item  
+
+#    local ser_item="$(declare -p item)"
+#    ser_item="${ser_item#"declare -A item="}"
+#    option_table["$key"]="$ser_item"
   done
 
-#declare -p option_table
   local retval="$(declare -p option_table)"
   echo "${retval#"declare -A option_table="}"
 }
 
 opts::parse_options_config () {
-  [ "$1" = "cfg" ] || { local -n cfg="$1"; }
-  if [ -z "$2" ]; then
-    local -A option_table
-  else
-    [ "$2" = "option_table" ] || { local -n option_table="$2"; }
-  fi
+  [ "$1" = "opts_cfg" ] || { local -n opts_cfg="$1"; }
+
+  local -A option_table
 
   local getopt_oargs
   local getopt_largs
 
-  local key; for key in "${!cfg[@]}"; do
-    declare -A data=${cfg["$key"]}
+  local key; for key in "${!opts_cfg[@]}"; do
+#    declare -A data=${opts_cfg["$key"]}
+    local val="${opts_cfg[$key]}"
+    local pattern='^declare -(.) ([^=]*)='; if [[ "${val}" =~ ${pattern} ]]; then
+      local type="${BASH_REMATCH[1]}"
+      val="${val#declare -"${type}" *=}"
+      local -"${type}" data="${val}"
+    else
+      echo >&2 "abort: expected a dictionary" && return 1
+    fi
+
     local short="${data[short]}"
     local long="${data[long]}"
     local arg="${data[arg]}"
@@ -253,18 +344,26 @@ opts::parse_options_config () {
 #    fi
 
     [ -n "$short" ] && getopt_oargs="${getopt_oargs}${short}${suffix}"
-    [ -n "$long" ] && getopt_largs="${getopt_largs}${long}${suffix},"
+    [ -n "$long" ]  && getopt_largs="${getopt_largs}${long}${suffix},"
 
     local -A item
-    item[arg]="$arg"
+    unset item[key]
+    unset item[arg]
+    unset item[action]
+    unset item["$short"]
+    unset item["$long"]
+
     item[key]="$key"
-    item[action]="$action"
+    [ -n "$arg" ]    && item[arg]="$arg"
+    [ -n "$action" ] && item[action]="$action"
+    [ -n "$short" ]  && dicts::add_entry_to_dict option_table "-$short" item  
+    [ -n "$long" ]   && dicts::add_entry_to_dict option_table "--$long" item  
 
-    local ser_item="$(declare -p item)"
-    ser_item="${ser_item#"declare -A item="}"
-
-    [ -n "$short" ] && option_table[-$short]="$ser_item"
-    [ -n "$long" ] && option_table[--$long]="$ser_item"
+#    local ser_item="$(declare -p item)"
+#    ser_item="${ser_item#"declare -A item="}"
+#
+#    [ -n "$short" ] && option_table[-$short]="$ser_item"
+#    [ -n "$long" ] && option_table[--$long]="$ser_item"
   done
 
   [ -n "$getopt_largs" ] && getopt_largs="${getopt_largs::-1}"
@@ -286,7 +385,6 @@ opts::parse_options() {
   local getopt_largs="${option_table[largs]}"
   local opt err ec
   
-  # catch opt err getopt -o ${getopt_oargs} -l ${getopt_largs} -- "$@"; ec=$?
   helpers::catch opt err getopt -o ${getopt_oargs} -l ${getopt_largs} -- "$@"; ec=$?
   if [ $ec -eq 1 ]; then
     err="${err#"getopt: "}"
@@ -302,7 +400,15 @@ opts::parse_options() {
     shift
     [ "$opt" = '--' ] && break
     [ ! "${option_table[$opt]+x}" ] && echo >&2 "unknown option $opt" && continue
-    local -A item="${option_table[$opt]}"
+#    local -A item="${option_table[$opt]}"
+    local val="${option_table[$opt]}"
+    local pattern='^declare -(.) ([^=]*)='; if [[ "${val}" =~ ${pattern} ]]; then
+      local type="${BASH_REMATCH[1]}"
+      val="${val#declare -"${type}" *=}"
+      local -"${type}" item="${val}"
+    else
+      echo >&2 "abort: expected a dictionary" && return 1
+    fi
     local key="${item[key]}"
     local arg="${item[arg]}"
     local action="${item[action]}"
