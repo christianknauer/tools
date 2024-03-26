@@ -1,0 +1,36 @@
+# ------------------------------------------------------
+# ------------------------------------------------------
+# https://gist.github.com/flbuddymooreiv/a4f24da7e0c3552942ff
+
+# ------------------------------------------------------
+# ------------------------------------------------------
+# preparation:
+
+# sudo apt install pass
+# pipx install pass-import 
+# pipx inject pass-import pykeepass
+
+# ------------------------------------------------------
+# ------------------------------------------------------
+# prepare GNU pass store (only needed once)
+
+rm -rf ~/.password-store/
+
+gpg --import ~/.config/keycamp/gpg/0x8554746DE3783FD7.asc
+pass init 8554746DE3783FD7
+# or: pass init email@christianknauer.de
+
+pass git init
+pass git remote add origin git@github.com:christianknauer/password-store.git
+# to commit run
+# pass git push -u --all
+
+# ------------------------------------------------------
+# ------------------------------------------------------
+# import/backup keepassxc databases to GNU pass
+
+pimport -vv pass keepassxc archive.kdbx -k archive.keyx -p @archive -o ~/.password-store/
+
+# ------------------------------------------------------
+
+# EOF
