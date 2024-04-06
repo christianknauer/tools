@@ -1,0 +1,24 @@
+
+sourceDir: '/home/administrator/github.com/tools/cm-safe-target'
+destDir: '{{ .chezmoi.sourceDir }}/out'
+cacheDir: '{{ .chezmoi.sourceDir }}/.chezmoi/cache'
+persistentState: '{{ .chezmoi.sourceDir }}/.chezmoi/config/chezmoistate.boltdb'
+umask: 0o77
+
+encryption: 'gpg'
+gpg:
+  recipient: 'chezmoi'
+
+hooks:
+  read-source-state:
+    pre:
+      command: "{{ .chezmoi.sourceDir }}/.chezmoihooks/read-source-state-pre.sh"
+    post:
+      command: "{{ .chezmoi.sourceDir }}/.chezmoihooks/read-source-state-post.sh"
+  apply:
+    pre:
+      command: "{{ .chezmoi.sourceDir }}/.chezmoihooks/apply-pre.sh"
+    post:
+      command: "{{ .chezmoi.sourceDir }}/.chezmoihooks/apply-post.sh"
+
+# EOF

@@ -1,0 +1,202 @@
+# file: {{ (base .chezmoi.targetFile) }}
+
+{{ if (contains (lower .chezmoi.hostname) "air2,air4,tpp51,btn6m5") }}
+# NAS (Synology)
+
+[nas-jump]
+type = sftp
+ssh = ssh nas-jump
+shell_type = unix
+md5sum_command = md5 -r
+sha1sum_command = sha1 -r
+
+[nas]
+type = sftp
+ssh = ssh nas
+shell_type = unix
+md5sum_command = md5 -r
+sha1sum_command = sha1 -r
+
+## Hetzner storage box
+# CAVE: not used anymore
+#
+#[hsb]
+#type = sftp
+#ssh = ssh hsb
+#shell_type = unix
+#md5sum_command = md5 -r
+#sha1sum_command = sha1 -r
+
+#[hsb-sub3]
+#type = sftp
+#ssh = ssh hsb-sub3
+#shell_type = unix
+#md5sum_command = md5 -r
+#sha1sum_command = sha1 -r
+
+# Fastmail
+
+[fm]
+type = webdav
+url = https://myfiles.fastmail.com
+vendor = fastmail
+user = {{ passhole "@credentials/fastmail.com/webdav" "username" }}
+pass = {{ passhole "@credentials/fastmail.com/webdav" "password" | output "rclone" "obscure" -}}
+
+# Dropbox
+
+[dbx]
+type = dropbox
+client_id = {{ passhole "@credentials/dropbox.com/rclone_ck" "username" }}
+client_secret = {{ passhole "@credentials/dropbox.com/rclone_ck" "password" }}
+token = {"access_token":"{{ passhole "@credentials/dropbox.com/rclone_ck" "access_token" }}","token_type":"bearer","refresh_token":"{{ passhole "@credentials/dropbox.com/rclone_ck" "refresh_token" }}","expiry":"{{ passhole "@credentials/dropbox.com/rclone_ck" "expiry" }}"}
+
+# pcloud
+
+[pcloud]
+type = pcloud
+hostname = eapi.pcloud.com
+token = {"access_token":"{{ passhole "@credentials/pcloud.com/rclone" "access_token" }}","token_type":"bearer","expiry":"{{ passhole "@credentials/pcloud.com/rclone" "expiry" }}"}
+
+# jotta
+
+[jotta]
+type = jottacloud
+configVersion = 1
+tokenURL = https://id.jottacloud.com/auth/realms/jottacloud/protocol/openid-connect/token
+client_id = jottacli
+client_secret = 
+token = {"access_token":"{{ passhole "@credentials/jottacloud.com/rclone-btn6m5" "access_token" }}","token_type":"bearer","refresh_token":"{{ passhole "@credentials/jottacloud.com/rclone-btn6m5" "refresh_token" }}","expiry":"{{ passhole "@credentials/jottacloud.com/rclone-btn6m5" "expiry" }}"}
+device = 
+mountpoint = 
+
+# usb 
+# (ext4 on luks)
+
+[aragorn]
+type = alias
+remote = /media/{{- .chezmoi.username -}}/aragorn
+
+[bilbo]
+type = alias
+remote = /media/{{- .chezmoi.username -}}/bilbo
+
+# ubt (smb)
+
+[ubt]
+type = smb
+host = home-pc.uni-bayreuth.de
+domain = uni-bayreuth
+user = bt291077
+pass = {{ passhole "@credentials/uni-bayreuth.de/smb" "password" | output "rclone" "obscure" }}
+[ubt-home]
+type = alias
+remote = ubt:home/77/bt291077
+
+[ubt-group]
+type = alias
+remote = ubt:group/vivaorg_10150030
+
+# Google Drive
+
+[gl]
+type = drive
+client_id = {{ passhole "@credentials/google.com/rclone-ck" "username" }}
+client_secret = {{ passhole "@credentials/google.com/rclone-ck" "password" }}
+scope = drive.appfolder
+root_folder_id = appDataFolder
+token = {"access_token":"{{ passhole "@credentials/google.com/rclone-ck" "access_token" }}","token_type":"bearer","refresh_token":"{{ passhole "@credentials/google.com/rclone-ck" "refresh_token" }}","expiry":"{{ passhole "@credentials/google.com/rclone-ck" "expiry" }}"}
+team_drive = 
+
+# Google cloud
+
+# CAVE: bucket names are *global*, so 
+#  > rclone mkdir gcs:tmp
+# fails since the bucket tmp is (most likely) already someone else's. 
+# Consequently, all our bucket names s start with the prefix "de-christianknauer-"
+
+[gcs]
+type = google cloud storage
+project_number = gcloud-411020
+object_acl = private
+bucket_acl = private
+location = europe-west3
+storage_class = REGIONAL
+token = {"access_token":"{{ passhole "@credentials/google.com/rclone-gcs" "access_token" }}","token_type":"bearer","refresh_token":"{{ passhole "@credentials/google.com/rclone-gcs" "refresh_token" }}","expiry":"{{ passhole "@credentials/google.com/rclone-gcs" "expiry" }}"}
+
+# iDrive e2 (S3)
+
+[idrivee2]
+type = s3
+provider = IDrive
+access_key_id = {{ passhole "@credentials/idrivee2.com/rclone" "username" }}
+secret_access_key = {{ passhole "@credentials/idrivee2.com/rclone" "password" }}
+acl = private
+bucket_acl = private
+endpoint = {{ passhole "@credentials/idrivee2.com/rclone" "url" }}
+
+# OneDrive
+
+[onedrive]
+type = onedrive
+client_id = {{ passhole "@credentials/azure.com/rclone" "username" }}
+client_secret = {{ passhole "@credentials/azure.com/rclone" "password" }}
+token = {"access_token":"{{ passhole "@credentials/azure.com/rclone" "access_token" }}","token_type":"bearer","refresh_token":"{{ passhole "@credentials/azure.com/rclone" "refresh_token" }}","expiry":"{{ passhole "@credentials/azure.com/rclone" "expiry" }}"}
+drive_id = {{ passhole "@credentials/azure.com/rclone" "drive_id" }}
+drive_type = personal
+
+# encrypted remotes 
+
+# passwords can be generated, e.g., with 
+#  > resticprofile generate --random-key
+# or with
+#  > apg -a 1 -m 128 -n 1 -M NCL
+
+[dbx-enc]
+type = crypt
+remote = dbx:rclone-enc
+password = {{ passhole "@credentials/rclone/dbx-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/dbx-enc" "password2" | output "rclone" "obscure" }}
+[gl-enc]
+type = crypt
+remote = gl:rclone-enc
+password = {{ passhole "@credentials/rclone/gl-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/gl-enc" "password2" | output "rclone" "obscure" }}
+[jotta-enc]
+type = crypt
+remote = jotta:rclone-enc
+password = {{ passhole "@credentials/rclone/jotta-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/jotta-enc" "password2" | output "rclone" "obscure" }}
+[pcloud-enc]
+type = crypt
+remote = pcloud:rclone-enc
+password = {{ passhole "@credentials/rclone/pcloud-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/pcloud-enc" "password2" | output "rclone" "obscure" }}
+#remote = ubt:rclone-enc
+[ubt-enc]
+type = crypt
+remote = ubt-group:KT/rclone-enc
+password = {{ passhole "@credentials/rclone/ubt-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/ubt-enc" "password2" | output "rclone" "obscure" }}
+[aragorn-enc]
+type = crypt
+remote = aragorn:rclone-enc
+password = {{ passhole "@credentials/rclone/aragorn-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/aragorn-enc" "password2" | output "rclone" "obscure" }}
+[idrivee2-enc]
+type = crypt
+remote = idrivee2:rclone-enc
+password = {{ passhole "@credentials/rclone/idrivee2-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/idrivee2-enc" "password2" | output "rclone" "obscure" }}
+[onedrive-enc]
+type = crypt
+remote = onedrive:rclone-enc
+password = {{ passhole "@credentials/rclone/onedrive-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/onedrive-enc" "password2" | output "rclone" "obscure" }}
+[fm-enc]
+type = crypt
+remote = fm:rclone-enc
+password = {{ passhole "@credentials/rclone/fm-enc" "password" | output "rclone" "obscure" -}}
+password2 = {{ passhole "@credentials/rclone/fm-enc" "password2" | output "rclone" "obscure" }}
+{{- end }}
+# EOF

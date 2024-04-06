@@ -1,0 +1,14 @@
+#!/bin/env bash
+
+(return 0 2>/dev/null) && __sourced=1
+[ -n "$__sourced" ] && echo "abort: this script cannot be sourced" >&2 && return 1
+script=${0##*/}
+
+echo "$script running ($PWD)"
+
+sleep 1s
+
+ls -laR
+
+# cat rclone.conf
+rclone -vv --config rclone.conf lsd pcloud:
