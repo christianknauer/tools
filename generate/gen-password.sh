@@ -18,7 +18,7 @@ kdbx_add_entries()
   local password="$4"
   local user="$5"
   local URL="$6"
-  local mnemonic="$8"
+  local mnemonic="$7"
   local hint="$8"
   local seed_password="$9"
 
@@ -113,8 +113,7 @@ while getopts "Xhfvte:p:k:m:U:L:H:" o; do
       #PASSWORD=${PASSWORD#D }
       PASSWORD=$(whiptail --passwordbox "Enter password" 10 40 3>&1 1>&2 2>&3)
       PASSCONF=$(whiptail --passwordbox "Confirm password" 10 40 3>&1 1>&2 2>&3)
-      [[ ! "${PASSWORD}" = "${PASSCONF}" ]] && echo "abort: password confirmation error" >&2
-      exit 3
+      [[ ! "${PASSWORD}" = "${PASSCONF}" ]] && echo "abort: password confirmation error" >&2 && exit 3
       ;;
     e)
       # mnemonic entropy
