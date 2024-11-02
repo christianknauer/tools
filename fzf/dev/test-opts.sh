@@ -17,7 +17,6 @@ echo -e -n "$(dicts::dict_to_json options_cfg)"
 opts::init $0
 usage_flags="$(opts::generate_flags_help options_cfg)"
 usage_config="$(opts::generate_config_help options_cfg)"
-
 declare -A config_file
 suffix=''
 lineno=0
