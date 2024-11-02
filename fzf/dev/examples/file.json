@@ -1,0 +1,12 @@
+{
+  "SITE_DATA": {
+    "URL": "example.com",
+    "AUTHOR": "John Doe",
+    "CREATED": "10/22/2017"
+  },
+  "OTHER_DATA": {
+    "URL": "other_example.com",
+    "AUTHOR": "other_John Doe",
+    "CREATED": "other_10/22/2017"
+  }
+}
