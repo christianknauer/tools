@@ -24,9 +24,11 @@ lineno=0
 echo -e -n "$(dicts::dict_to_json config_file)" 
 
 declare -A option_table="$(opts::parse_options_config options_cfg)"
+echo "option_table:" 
 echo -e -n "$(dicts::dict_to_json option_table)" 
 
 declare -A config_table="$(opts::parse_options_config_for_env options_cfg)"
+echo "config_table:" 
 echo -e -n "$(dicts::dict_to_json config_table)" 
 
 declare -A options
