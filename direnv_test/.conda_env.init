@@ -1,0 +1,3 @@
+# inject nvm & bun into conda environment
+conda-inject-bun -y "$1"
+conda-inject-nvm -y "$1"
