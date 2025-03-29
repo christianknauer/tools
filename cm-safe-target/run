@@ -1,1 +1,1 @@
-chezmoi --config "/home/administrator/github.com/tools/cm-safe-target/.chezmoi/config/chezmoi.yaml" init && chezmoi --config "/home/administrator/github.com/tools/cm-safe-target/.chezmoi/config/chezmoi.yaml" apply
+chezmoi --config "$HOME/github.com/tools/cm-safe-target/.chezmoi/config/chezmoi.yaml" init && chezmoi --config "$HOME/github.com/tools/cm-safe-target/.chezmoi/config/chezmoi.yaml" apply

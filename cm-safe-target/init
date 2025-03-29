@@ -1,0 +1,1 @@
+chezmoi --config "$HOME/github.com/tools/cm-safe-target/.chezmoi/config/chezmoi.yaml" init

@@ -1,5 +1,5 @@
 
-sourceDir: '/home/administrator/github.com/tools/cm-safe-target'
+sourceDir: '{{ .chezmoi.homeDir }}/github.com/tools/cm-safe-target'
 destDir: '{{ .chezmoi.sourceDir }}/out'
 cacheDir: '{{ .chezmoi.sourceDir }}/.chezmoi/cache'
 persistentState: '{{ .chezmoi.sourceDir }}/.chezmoi/config/chezmoistate.boltdb'
